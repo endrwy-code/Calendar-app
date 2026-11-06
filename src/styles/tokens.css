@@ -1,0 +1,122 @@
+/* ------------------------------------------------------------------
+   Design tokens — "warm paper" light theme and a soft ink dark theme.
+   Status colours follow the reference: To Do = coral,
+   In Progress = amber, Done = indigo. Primary action = teal.
+------------------------------------------------------------------- */
+:root {
+  --font-display: 'Poppins', 'Inter Variable', system-ui, sans-serif;
+  --font-body: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 30px;
+
+  /* Safe areas: device insets (notch / status bar / home indicator) plus
+     Telegram's own floating controls in fullscreen. Values come from
+     Telegram at runtime (see lib/telegram.ts); env() covers PWAs. */
+  --inset-top: max(env(safe-area-inset-top, 0px), calc(var(--tg-sa-top, 0px) + var(--tg-csa-top, 0px)));
+  --inset-bottom: max(env(safe-area-inset-bottom, 0px), calc(var(--tg-sa-bottom, 0px) + var(--tg-csa-bottom, 0px)));
+  --inset-left: max(env(safe-area-inset-left, 0px), calc(var(--tg-sa-left, 0px) + var(--tg-csa-left, 0px)));
+  --inset-right: max(env(safe-area-inset-right, 0px), calc(var(--tg-sa-right, 0px) + var(--tg-csa-right, 0px)));
+
+  --nav-h: 64px;
+  --hour-h: 52px;
+  --gutter: 16px;
+
+  /* Category palette */
+  --coral: #e46472;
+  --amber: #f0a04b;
+  --teal: #2e9c97;
+  --indigo: #6488e4;
+  --violet: #9b72db;
+  --green: #4caa76;
+  --rose: #dd6aa0;
+  --sky: #3ba5d6;
+  --slate: #6f7d92;
+
+  --status-todo: var(--coral);
+  --status-progress: var(--amber);
+  --status-done: var(--indigo);
+}
+
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #fbf7ef;
+  --surface: #ffffff;
+  --surface-2: #f5efe4;
+  --surface-3: #ece4d5;
+  --line: #ebe3d5;
+  --line-strong: #dcd1bf;
+  --ink: #13213c;
+  --ink-2: #4c5669;
+  --ink-3: #8b909c;
+  --accent: #2b8f8a;
+  --accent-strong: #227570;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcefed;
+  --hero: #f9be7c;
+  --hero-2: #f6ae62;
+  --hero-ink: #13213c;
+  --hero-ink-2: #5d4a35;
+  --danger: #d4464f;
+  --now: #e2475a;
+  --backdrop: rgba(19, 24, 38, 0.42);
+  --shadow-sm: 0 1px 2px rgba(19, 33, 60, 0.06), 0 1px 1px rgba(19, 33, 60, 0.04);
+  --shadow-md: 0 6px 20px -6px rgba(19, 33, 60, 0.18), 0 2px 6px rgba(19, 33, 60, 0.06);
+  --shadow-lg: 0 24px 60px -12px rgba(19, 33, 60, 0.35);
+  --tint: 15%;
+  --tint-strong: 26%;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #121419;
+  --surface: #1b1e25;
+  --surface-2: #23272f;
+  --surface-3: #2d323c;
+  --line: #2a2e37;
+  --line-strong: #3a404b;
+  --ink: #eef0f4;
+  --ink-2: #b4bac6;
+  --ink-3: #7f8696;
+  --accent: #3fb3ac;
+  --accent-strong: #5cc6bf;
+  --accent-ink: #0d1f1e;
+  --accent-soft: #1d3634;
+  --hero: #2a241d;
+  --hero-2: #3a2e20;
+  --hero-ink: #fbe6cb;
+  --hero-ink-2: #c9ad8a;
+  --danger: #f06a72;
+  --now: #ff6b7d;
+  --backdrop: rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 24px 60px -12px rgba(0, 0, 0, 0.7);
+  --tint: 20%;
+  --tint-strong: 32%;
+
+  --coral: #f07784;
+  --amber: #f3ad5f;
+  --teal: #43b5ae;
+  --indigo: #7d9cf0;
+  --violet: #ae8ae8;
+  --green: #5fbe89;
+  --rose: #ea7fb1;
+  --sky: #5cb8e2;
+  --slate: #8d9ab0;
+}
+
+/* Colour helper classes set --c, used by chips, events and dots */
+.c-coral { --c: var(--coral); }
+.c-amber { --c: var(--amber); }
+.c-teal { --c: var(--teal); }
+.c-indigo { --c: var(--indigo); }
+.c-violet { --c: var(--violet); }
+.c-green { --c: var(--green); }
+.c-rose { --c: var(--rose); }
+.c-sky { --c: var(--sky); }
+.c-slate { --c: var(--slate); }

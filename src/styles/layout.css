@@ -1,0 +1,466 @@
+/* ---------- App shell ---------- */
+.app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  background: var(--bg);
+}
+.app-main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.screen {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-left: var(--inset-left);
+  padding-right: var(--inset-right);
+}
+
+/* Header that sits below the device + Telegram controls inset */
+.screen-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: calc(var(--inset-top) + 8px) 8px 8px;
+  min-height: calc(var(--inset-top) + 60px);
+  background: var(--bg);
+  flex: none;
+  position: relative;
+  z-index: 10;
+}
+.screen-title {
+  font-size: 22px;
+  font-weight: 600;
+  padding: 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.spacer {
+  flex: 1;
+}
+
+/* ---------- Bottom navigation (mobile) ---------- */
+.bottom-nav {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: center;
+  height: calc(var(--nav-h) + var(--inset-bottom));
+  padding: 0 calc(6px + var(--inset-right)) var(--inset-bottom) calc(6px + var(--inset-left));
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  position: relative;
+  z-index: 5;
+}
+.nav-item {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 6px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+  transition: color 0.15s;
+}
+.nav-item svg {
+  transition: transform 0.2s;
+}
+.nav-item[aria-current='page'] {
+  color: var(--ink);
+}
+.nav-item[aria-current='page'] .nav-icon {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent-strong);
+}
+.nav-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 28px;
+  border-radius: 999px;
+  transition: background 0.2s;
+}
+.nav-fab {
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin-top: -26px;
+  border-radius: 20px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--accent) 80%, transparent), var(--shadow-sm);
+  transition: transform 0.15s;
+}
+.nav-fab:active {
+  transform: scale(0.94);
+}
+
+/* ---------- Sidebar (desktop) / drawer (mobile) ---------- */
+.sidebar {
+  width: 280px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: calc(var(--inset-top) + 18px) 16px calc(var(--inset-bottom) + 16px) calc(16px + var(--inset-left));
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 6px;
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--hero);
+  color: var(--hero-ink);
+}
+.brand-name {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 700;
+}
+.side-section {
+  display: grid;
+  gap: 2px;
+}
+.side-heading {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.side-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
+  text-align: left;
+  width: 100%;
+  transition: background 0.15s, color 0.15s;
+}
+.side-link:hover {
+  background: var(--surface-2);
+}
+.side-link[aria-current='page'],
+.side-link[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  color: var(--ink);
+  font-weight: 600;
+}
+.side-link .count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-3);
+  font-weight: 600;
+}
+.cal-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.cal-toggle:hover {
+  background: var(--surface-2);
+}
+.cal-box {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 2px solid var(--c);
+  color: #fff;
+  flex: none;
+}
+.cal-box.on {
+  background: var(--c);
+}
+
+.drawer-backdrop,
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--backdrop);
+  z-index: 40;
+  animation: fade-in 0.18s ease-out;
+}
+.drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(86vw, 320px);
+  z-index: 41;
+  border-right: 0;
+  box-shadow: var(--shadow-lg);
+  overflow-y: auto;
+  animation: slide-in-left 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* ---------- Sheets & dialogs ---------- */
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100% - var(--inset-top) - 8px);
+  background: var(--surface);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  box-shadow: var(--shadow-lg);
+  animation: slide-up 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.sheet.tall {
+  height: calc(100% - var(--inset-top) - 8px);
+}
+.sheet-handle {
+  width: 40px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--line-strong);
+  margin: 8px auto 0;
+  flex: none;
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 20px;
+  flex: none;
+}
+.sheet-title {
+  font-size: 18px;
+  font-weight: 600;
+  flex: 1;
+}
+.sheet-body {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 20px 20px;
+}
+.sheet-foot {
+  flex: none;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 20px calc(12px + var(--inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.dialog {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(92vw, 380px);
+  padding: 22px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  display: grid;
+  gap: 14px;
+  animation: pop-in 0.18s ease-out;
+}
+.dialog h3 {
+  font-size: 18px;
+}
+.dialog p {
+  color: var(--ink-2);
+  font-size: 14px;
+}
+.dialog-actions {
+  display: grid;
+  gap: 8px;
+}
+
+/* ---------- Toasts ---------- */
+.toasts {
+  position: fixed;
+  z-index: 70;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--nav-h) + var(--inset-bottom) + 12px);
+  display: grid;
+  gap: 8px;
+  width: min(92vw, 420px);
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 12px 16px;
+  border-radius: 14px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: var(--shadow-md);
+  animation: slide-up 0.22s ease-out;
+}
+.toast span {
+  flex: 1;
+}
+.toast button {
+  font-weight: 700;
+  color: var(--hero);
+  padding: 4px 8px;
+}
+:root[data-theme='dark'] .toast button {
+  color: #b3541e;
+}
+
+/* ---------- Popover ---------- */
+.popover {
+  position: absolute;
+  z-index: 30;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--line);
+  padding: 12px;
+  animation: pop-in 0.15s ease-out;
+}
+
+/* ---------- Telegram fullscreen simulation (?tgsim) ---------- */
+.tg-sim {
+  position: fixed;
+  z-index: 100;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--tg-sa-top) + var(--tg-csa-top));
+  pointer-events: none;
+}
+.tg-sim-status {
+  height: var(--tg-sa-top);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 28px 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.tg-sim-controls {
+  height: var(--tg-csa-top);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+}
+.tg-sim-pill {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(40, 40, 46, 0.45);
+  backdrop-filter: blur(10px);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ---------- Animations ---------- */
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+@keyframes slide-up {
+  from { transform: translateY(24px); opacity: 0; }
+}
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+}
+@keyframes pop-in {
+  from { opacity: 0; scale: 0.96; }
+}
+.dialog {
+  animation-name: fade-in;
+}
+
+/* ---------- Responsive ---------- */
+@media (min-width: 720px) {
+  .sheet {
+    left: 50%;
+    right: auto;
+    top: 50%;
+    bottom: auto;
+    transform: translate(-50%, -50%);
+    width: min(560px, 92vw);
+    max-height: min(86vh, 820px);
+    border-radius: var(--radius-xl);
+    animation: fade-in 0.18s ease-out;
+  }
+  .sheet.tall {
+    height: min(86vh, 820px);
+  }
+  .sheet-handle {
+    display: none;
+  }
+  .sheet-head {
+    padding-top: 16px;
+  }
+  .sheet-foot {
+    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+    padding-bottom: 14px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .bottom-nav {
+    display: none;
+  }
+  .toasts {
+    bottom: 24px;
+  }
+  :root {
+    --hour-h: 56px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
