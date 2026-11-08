@@ -2,7 +2,9 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    # The live site (and the link in BotFather) is built from these branches.
+    # The Pages URL stays the same on every deploy.
+    branches: [main, claude/modest-einstein-sood2s]
   workflow_dispatch:
 
 permissions:
