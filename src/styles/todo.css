@@ -1,0 +1,399 @@
+/* ---------- To-do ---------- */
+.todo-scroll {
+  flex: 1;
+  min-height: 0;
+}
+.todo-wrap {
+  max-width: 640px;
+  margin: 0 auto;
+  padding-bottom: calc(48px + var(--inset-bottom));
+}
+
+.quote {
+  margin: 14px 24px 22px;
+}
+.quote blockquote {
+  margin: 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 27px;
+  line-height: 1.12;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.quote figcaption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.quote figcaption::before {
+  content: '';
+  width: 18px;
+  height: 1px;
+  background: currentColor;
+}
+
+/* Composer stays pinned under the top bar while the list scrolls */
+.composer {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 8px 16px 10px;
+  background: var(--bg);
+}
+.composer::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--line);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.composer.stuck::after {
+  opacity: 1;
+}
+.composer-icon {
+  position: absolute;
+  left: 30px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.composer input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px 0 44px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--fill);
+  font-size: 16px;
+  outline: none;
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+.composer input:focus {
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line-2), var(--shadow-sm);
+}
+.composer input::placeholder {
+  color: var(--ink-3);
+}
+.composer-add {
+  height: 44px;
+  padding: 0;
+  font-weight: 600;
+  font-size: 15.5px;
+  color: var(--ink);
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  transform: scale(0.8);
+  pointer-events: none;
+  transition:
+    opacity 0.2s,
+    transform 0.45s var(--spring-bounce),
+    max-width 0.45s var(--spring);
+}
+.composer-add.show {
+  opacity: 1;
+  max-width: 64px;
+  padding: 0 2px 0 14px;
+  transform: none;
+  pointer-events: auto;
+}
+
+.todo-list {
+  position: relative;
+}
+
+.todo-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 22px 20px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.todo-head.h-in_progress {
+  color: var(--progress);
+}
+.todo-count {
+  font-weight: 500;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.todo-head-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.todo-head-toggle .chev {
+  color: var(--ink-3);
+  transition: transform 0.45s var(--spring);
+}
+.todo-head-toggle .chev.down {
+  transform: rotate(90deg);
+}
+.todo-head .text-btn {
+  margin-left: auto;
+}
+
+/* ---------- Row with swipe actions ---------- */
+.todo-row {
+  position: relative;
+  overflow: hidden;
+}
+.todo-face {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 20px;
+  background: var(--bg);
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: default;
+  transition:
+    background-color 0.25s,
+    opacity 0.2s;
+}
+.todo-face:active {
+  background: color-mix(in srgb, var(--ink) 3%, var(--bg));
+  transition-duration: 0.05s;
+}
+.todo-face::after {
+  content: '';
+  position: absolute;
+  left: 54px;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--line);
+  transform: scaleY(0.6);
+  transform-origin: bottom;
+}
+.todo-row.vanish .todo-face {
+  opacity: 0;
+}
+
+.todo-check {
+  position: relative;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 0;
+  transition: transform 0.45s var(--spring);
+}
+.todo-check::before {
+  content: '';
+  position: absolute;
+  inset: -11px -12px;
+}
+.todo-check:active {
+  transform: scale(0.86);
+  transition-duration: 0.08s;
+}
+.todo-check.sm {
+  width: 20px;
+  height: 20px;
+}
+
+.todo-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.todo-title {
+  font-size: 16px;
+  line-height: 22px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  /* Strike-through that draws across */
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 58% / 0% 1px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  transition:
+    background-size 0.35s var(--ease-out),
+    color 0.3s;
+  justify-self: start;
+}
+.todo-face.s-done .todo-title {
+  color: var(--ink-3);
+  background-size: 100% 1px;
+}
+.todo-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  min-width: 0;
+}
+.todo-when {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.todo-when.late,
+.todo-due.late {
+  color: var(--red);
+}
+.todo-note {
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.todo-hover {
+  display: none;
+  gap: 2px;
+  margin: -4px -8px -4px 0;
+}
+.todo-hover button {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+}
+.todo-hover button:hover {
+  background: var(--fill);
+  color: var(--ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .todo-face:hover .todo-hover {
+    display: flex;
+  }
+  .todo-face {
+    cursor: pointer;
+  }
+}
+
+.swipe-lead,
+.swipe-trail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  display: flex;
+  overflow: hidden;
+  color: #fff;
+}
+.swipe-lead {
+  left: 0;
+  justify-content: flex-end;
+  align-items: center;
+  background: var(--progress);
+}
+.swipe-lead.pause {
+  background: var(--ink-2);
+}
+.swipe-lead > * {
+  flex: none;
+}
+.swipe-lead .swipe-icon {
+  width: 40px;
+  display: grid;
+  place-items: center;
+  transform: scale(0.8);
+  opacity: 0.7;
+  transition:
+    transform 0.4s var(--spring-bounce),
+    opacity 0.2s;
+}
+.swipe-lead.armed .swipe-icon {
+  transform: scale(1.12);
+  opacity: 1;
+}
+.swipe-label {
+  display: none;
+}
+.swipe-trail {
+  right: 0;
+}
+.swipe-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: flex-grow 0.4s var(--spring);
+}
+.swipe-btn.cal {
+  background: var(--ink-2);
+}
+.swipe-btn.del {
+  background: var(--red);
+}
+.swipe-trail.armed .swipe-btn.cal {
+  flex-grow: 0.0001;
+}
+.swipe-trail.armed .swipe-btn.del {
+  flex-grow: 1;
+}
+
+.todo-empty {
+  padding: 56px 32px 24px;
+  text-align: center;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 22px;
+  color: var(--ink-2);
+}
+.todo-empty span {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font);
+  font-style: normal;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+.todo-hint {
+  padding: 28px 40px 0;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  text-wrap: balance;
+}
+@media (hover: hover) and (pointer: fine) {
+  .todo-hint {
+    display: none;
+  }
+}

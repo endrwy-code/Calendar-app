@@ -1,6 +1,6 @@
 import { addDays, startOfDay } from 'date-fns';
 import type { CalEvent, CalendarCategory, Task, TaskStatus } from '../types';
-import { parseLocal, toDateKey, toLocalISO } from './dates';
+import { parseLocal, toLocalISO } from './dates';
 import { expandEvents, type Occurrence } from './recurrence';
 import { findFreeSlot, taskBounds, type Interval } from './schedule';
 
@@ -9,45 +9,14 @@ export function visibleEvents(events: CalEvent[], calendars: CalendarCategory[])
   return hidden.size ? events.filter((e) => !hidden.has(e.calendarId)) : events;
 }
 
-export function isTaskVisible(task: Task, calendars: CalendarCategory[]): boolean {
-  if (!task.calendarId) return true;
-  const c = calendars.find((x) => x.id === task.calendarId);
-  return !c || c.visible;
-}
-
-export function countByStatus(tasks: Task[]): Record<TaskStatus, number> {
-  const out: Record<TaskStatus, number> = { todo: 0, in_progress: 0, done: 0 };
-  for (const t of tasks) out[t.status]++;
+/** Open to-dos newest first (the composer is at the top); done ones by completion, newest first. */
+export function orderTodos(tasks: Task[]): Record<TaskStatus, Task[]> {
+  const out: Record<TaskStatus, Task[]> = { todo: [], in_progress: [], done: [] };
+  for (const t of tasks) out[t.status].push(t);
+  out.todo.sort((a, b) => b.createdAt - a.createdAt);
+  out.in_progress.sort((a, b) => b.createdAt - a.createdAt);
+  out.done.sort((a, b) => (b.completedAt ?? b.updatedAt) - (a.completedAt ?? a.updatedAt));
   return out;
-}
-
-const PRIORITY_RANK = { high: 0, medium: 1, low: 2, none: 3 } as const;
-
-/** Open tasks first by priority, then by due date, then newest. Done tasks by completion time. */
-export function sortTasks(tasks: Task[]): Task[] {
-  return [...tasks].sort((a, b) => {
-    if (a.status === 'done' && b.status === 'done') return (b.completedAt ?? 0) - (a.completedAt ?? 0);
-    const p = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
-    if (p) return p;
-    const ad = a.dueDate ?? a.scheduledStart?.slice(0, 10) ?? '9999';
-    const bd = b.dueDate ?? b.scheduledStart?.slice(0, 10) ?? '9999';
-    if (ad !== bd) return ad < bd ? -1 : 1;
-    return b.createdAt - a.createdAt;
-  });
-}
-
-/** Tasks scheduled within a day (time-blocked). */
-export function scheduledTasksOn(tasks: Task[], dateKey: string): Task[] {
-  return tasks.filter((t) => t.scheduledStart?.startsWith(dateKey));
-}
-
-/** Tasks due that day that have no time block (shown in the all-day row). */
-export function dueTasksOn(tasks: Task[], dateKey: string): Task[] {
-  return tasks.filter((t) => !t.scheduledStart && t.dueDate === dateKey);
-}
-
-export function isOverdue(t: Task, today = toDateKey(new Date())): boolean {
-  return t.status !== 'done' && !!t.dueDate && t.dueDate < today;
 }
 
 /** Busy intervals from timed events and scheduled tasks between two dates. */
@@ -66,6 +35,32 @@ export function busyIntervals(
     if (b && b.end > from && b.start < to) busy.push(b);
   }
   return busy;
+}
+
+/**
+ * Up to `count` suggested start times for a to-do, each on a different day:
+ * the next free slot from now, then the first free slot on each following day.
+ */
+export function suggestSlots(
+  task: Pick<Task, 'id' | 'durationMin'>,
+  events: CalEvent[],
+  tasks: Task[],
+  dayStartHour: number,
+  dayEndHour: number,
+  count = 3,
+  now = new Date(),
+): string[] {
+  const to = addDays(startOfDay(now), 15);
+  const busy = busyIntervals(events, tasks, startOfDay(now), to, task.id);
+  const out: string[] = [];
+  let from = now;
+  for (let i = 0; i < count; i++) {
+    const slot = findFreeSlot({ busy, from, durationMin: task.durationMin || 30, dayStartHour, dayEndHour });
+    if (!slot) break;
+    out.push(toLocalISO(slot));
+    from = addDays(startOfDay(slot), 1);
+  }
+  return out;
 }
 
 /** Earliest free slot for a task, starting now (or at the start of `fromDay` if later). */
@@ -99,7 +94,7 @@ export type DayItem =
   | { kind: 'event'; key: string; start: Date; end: Date; occ: Occurrence }
   | { kind: 'task'; key: string; start: Date; end: Date; task: Task };
 
-/** Timed events + scheduled tasks for one day, in order. */
+/** Timed events + scheduled to-dos for one day, in order. */
 export function dayAgenda(occ: Occurrence[], tasks: Task[], dateKey: string): DayItem[] {
   const dayStart = parseLocal(dateKey);
   const dayEnd = addDays(dayStart, 1);

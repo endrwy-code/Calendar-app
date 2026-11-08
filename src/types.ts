@@ -4,7 +4,7 @@ export type TaskStatus = 'todo' | 'in_progress' | 'done';
 export type Priority = 'none' | 'low' | 'medium' | 'high';
 export type Freq = 'daily' | 'weekly' | 'monthly' | 'yearly';
 export type ViewMode = 'day' | '3day' | 'week' | 'month' | 'agenda';
-export type Tab = 'today' | 'calendar' | 'tasks' | 'settings';
+export type Tab = 'todo' | 'calendar';
 
 export const COLOR_KEYS = [
   'coral',
@@ -60,6 +60,12 @@ export interface Subtask {
   done: boolean;
 }
 
+/**
+ * A to-do. The list itself is independent of dates; a to-do only shows on the
+ * calendar once it's given a time block (`scheduledStart` + `durationMin`).
+ * `priority`, `calendarId`, `dueDate` and `subtasks` come from the earlier
+ * version and are kept so existing data isn't lost.
+ */
 export interface Task {
   id: ID;
   title: string;
@@ -67,9 +73,9 @@ export interface Task {
   status: TaskStatus;
   priority: Priority;
   calendarId?: ID | null;
-  /** YYYY-MM-DD */
+  /** YYYY-MM-DD (legacy) */
   dueDate?: string | null;
-  /** "YYYY-MM-DDTHH:mm" — when the task is time-blocked on the calendar */
+  /** "YYYY-MM-DDTHH:mm" — when the to-do is time-blocked on the calendar */
   scheduledStart?: string | null;
   durationMin: number;
   subtasks: Subtask[];
@@ -80,14 +86,12 @@ export interface Task {
 }
 
 export interface Settings {
-  name: string;
   theme: 'system' | 'light' | 'dark';
   weekStartsOn: 0 | 1;
   timeFormat: '24h' | '12h';
   showWeekNumbers: boolean;
-  showTasksOnCalendar: boolean;
   defaultEventMinutes: number;
-  /** Hours used by "find a free slot" */
+  /** Hours used when suggesting free slots for a to-do */
   dayStartHour: number;
   dayEndHour: number;
   calendarView: ViewMode;

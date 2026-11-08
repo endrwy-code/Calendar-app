@@ -1,0 +1,865 @@
+/* ---------- Calendar screen ---------- */
+.calendar {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cal-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px 8px 18px;
+}
+.cal-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 0;
+  color: var(--ink);
+}
+.cal-title-text {
+  font-family: var(--serif);
+  font-size: 31px;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  animation: title-in 0.5s var(--spring);
+}
+.cal-year {
+  font-family: var(--font);
+  font-size: 15px;
+  color: var(--ink-3);
+  margin-left: 8px;
+  letter-spacing: 0;
+}
+.cal-title-chev {
+  color: var(--ink-3);
+  margin-top: 4px;
+  transition: transform 0.45s var(--spring);
+}
+.cal-title-chev.up {
+  transform: rotate(180deg);
+}
+.cal-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.fab {
+  position: absolute;
+  z-index: 6;
+  right: calc(18px + var(--inset-right));
+  bottom: calc(18px + var(--inset-bottom));
+  width: 54px;
+  height: 54px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+  color: var(--on-ink);
+  box-shadow:
+    0 10px 28px -8px rgba(0, 0, 0, 0.4),
+    0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.fab:active {
+  transform: scale(0.9);
+  transition-duration: 0.08s;
+}
+
+/* ---------- Time grid (day / 3 days / week) ---------- */
+.tg {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.tg-vp {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.tg-track {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+.tg-pane {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  animation: fade-in 0.25s ease-out;
+}
+.tg-corner {
+  width: var(--gutter-w);
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.tg-corner .wk {
+  font-variant-numeric: tabular-nums;
+}
+.tg-corner.small {
+  align-self: start;
+  padding-top: 6px;
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+}
+
+.tg-head {
+  flex: none;
+  display: flex;
+  height: 52px;
+  box-shadow: inset 0 -1px var(--line);
+}
+.tg-dhs {
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+}
+.tg-dh,
+.strip-day {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  min-width: 0;
+}
+.dh-dow {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.dh-num {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  font-size: 17px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  transition:
+    color 0.25s,
+    background-color 0.25s;
+}
+.tg-dh.past .dh-num {
+  color: var(--ink-2);
+}
+.tg-dh.today .dh-dow,
+.strip-day.today .dh-dow {
+  color: var(--red);
+}
+.tg-dh.today .dh-num {
+  background: var(--red);
+  color: #fff;
+  font-weight: 600;
+}
+.tg-dh:active .dh-num {
+  background: var(--fill-2);
+}
+.tg-dh.today:active .dh-num {
+  background: var(--red);
+  opacity: 0.85;
+}
+
+/* Day view: week strip with a sliding selection */
+.tg-strip {
+  position: relative;
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  height: 54px;
+  padding: 0 8px;
+}
+.strip-sel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 8px;
+  width: calc((100% - 16px) / 7);
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  padding-top: 18px;
+  transform: translate3d(calc(var(--i) * 100%), 0, 0);
+  transition: transform 0.5s var(--spring);
+  pointer-events: none;
+}
+.strip-sel i {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--ink);
+}
+.tg-strip:has(.strip-day.sel.today) .strip-sel i {
+  background: var(--red);
+}
+.strip-day {
+  position: relative;
+  z-index: 1;
+}
+.strip-day.today .dh-num {
+  color: var(--red);
+  font-weight: 600;
+}
+.strip-day.sel .dh-num {
+  color: var(--on-ink);
+  font-weight: 600;
+}
+.strip-day.sel.today .dh-num {
+  color: #fff;
+}
+.tg-dayline {
+  flex: none;
+  padding: 2px 16px 9px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-2);
+  box-shadow: inset 0 -1px var(--line);
+}
+
+/* All-day row: bars span across the days they cover */
+.tg-allday {
+  flex: none;
+  display: flex;
+  box-shadow: inset 0 -1px var(--line);
+  transition: height 0.4s var(--spring);
+}
+.ad-bar {
+  position: absolute;
+  height: 19px;
+  padding: 0 7px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 19px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--c);
+  color: #fff;
+}
+:root[data-theme='dark'] .ad-bar {
+  background: color-mix(in srgb, var(--c) 55%, var(--bg));
+}
+.ad-bar.clip-l {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  left: 0 !important;
+}
+.ad-bar.clip-r {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.tg-scroll {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  touch-action: pan-y;
+}
+.tg-canvas {
+  position: relative;
+  margin: 10px 0 calc(90px + var(--inset-bottom));
+}
+.tg-canvas > .tg-vp {
+  position: absolute;
+  inset: 0 0 0 var(--gutter-w);
+  overflow: hidden;
+}
+.tg-gutter {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--gutter-w);
+}
+.tg-hour {
+  position: absolute;
+  right: 8px;
+  transform: translateY(-50%);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transition: opacity 0.25s;
+}
+.tg-hour.hide {
+  opacity: 0;
+}
+.tg-nowlabel {
+  position: absolute;
+  top: 0;
+  right: 3px;
+  z-index: 2;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 15px;
+  transition: transform 0.8s var(--ease-out);
+}
+
+/* Hour rules are drawn once per pane as a background, so they're crisp and cheap */
+.tg-cols {
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px);
+  background-size: 100% var(--hour-h);
+}
+.tg-col {
+  position: relative;
+  height: 100%;
+  box-shadow: inset 1px 0 var(--grid);
+}
+.tg-col.weekend {
+  background-color: color-mix(in srgb, var(--ink) 1.6%, transparent);
+}
+
+/* Event blocks */
+.ev {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px 5px 3px 7px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--c) var(--ev-tint), var(--bg));
+  color: color-mix(in srgb, var(--c) var(--ev-ink), var(--ink));
+  /* colour bar on the left, and a 1px gap ring so overlapping blocks stay distinct */
+  box-shadow:
+    inset 2.5px 0 var(--c),
+    0 0 0 1px var(--bg);
+  cursor: pointer;
+  transition:
+    transform 0.45s var(--spring),
+    opacity 0.3s,
+    filter 0.2s;
+}
+.ev:active {
+  transform: scale(0.97);
+  filter: brightness(0.97);
+  transition-duration: 0.08s;
+}
+.ev.past {
+  --ev-tint: 10%;
+}
+.ev-title {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 14px;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: manual;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--lines, 3);
+  overflow: hidden;
+}
+.ev-time {
+  flex: none;
+  font-size: 10.5px;
+  line-height: 13px;
+  opacity: 0.78;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+.ev.short {
+  padding-top: 1px;
+  padding-bottom: 1px;
+  justify-content: center;
+}
+.ev.short .ev-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v-week .ev {
+  padding: 2px 3px 2px 5px;
+  border-radius: 5px;
+}
+.v-week .ev-title {
+  font-size: 10.5px;
+  line-height: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.v-week .ev-time {
+  font-size: 9.5px;
+}
+.ev.is-task {
+  --c: var(--ink-3);
+  background: color-mix(in srgb, var(--ink) 6%, var(--bg));
+  color: var(--ink);
+}
+.ev.is-done .ev-title {
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-3);
+  color: var(--ink-2);
+}
+.ev-check {
+  display: inline-block;
+  vertical-align: -1.5px;
+  margin-right: 4px;
+}
+.ev-check .glyph {
+  display: inline-block;
+}
+.ev.ghost {
+  --c: var(--ink);
+  background: color-mix(in srgb, var(--ink) 8%, var(--bg));
+  color: var(--ink);
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 55%, transparent),
+    0 4px 14px -6px rgba(0, 0, 0, 0.25);
+  animation: ghost-in 0.45s var(--spring-bounce);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Current time: a pill in the gutter, a faint rule across the days, and a solid segment on today */
+.now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 0;
+  z-index: 3;
+  pointer-events: none;
+  transition: transform 0.8s var(--ease-out);
+}
+.now-rule {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -0.5px;
+  height: 1px;
+  background: color-mix(in srgb, var(--red) 40%, transparent);
+}
+.now-seg {
+  position: absolute;
+  top: -1px;
+  height: 2px;
+  background: var(--red);
+}
+.now-seg i {
+  position: absolute;
+  left: -3.5px;
+  top: -2.5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--red);
+}
+.v-day .now-seg i {
+  display: none;
+}
+
+/* ---------- Month ---------- */
+.month {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  padding-bottom: var(--inset-bottom);
+}
+.month-dows,
+.month-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.month.with-wk .month-dows,
+.month.with-wk .month-week {
+  grid-template-columns: 22px repeat(7, minmax(0, 1fr));
+}
+.month-dows {
+  flex: none;
+  padding: 2px 0 7px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  text-align: center;
+  box-shadow: inset 0 -1px var(--line);
+}
+.month-vp {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.month-track {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+.month-pane {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  display: grid;
+  animation: fade-in 0.25s ease-out;
+}
+.month-week {
+  box-shadow: inset 0 -1px var(--grid);
+  min-height: 0;
+}
+.wk-col {
+  font-size: 9.5px;
+  color: var(--ink-3);
+  text-align: center;
+  padding-top: 7px;
+  font-variant-numeric: tabular-nums;
+}
+.mc {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 3px 2px 2px;
+  overflow: hidden;
+  box-shadow: inset 1px 0 var(--grid);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.mc:first-child,
+.month.with-wk .mc:nth-child(2) {
+  box-shadow: none;
+}
+.mc:active {
+  background: var(--fill);
+  transition-duration: 0.05s;
+}
+.mc-num {
+  align-self: center;
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 4px;
+  margin-bottom: 2px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.mc.other .mc-num {
+  color: var(--ink-3);
+}
+.mc.today .mc-num {
+  background: var(--red);
+  color: #fff;
+  font-weight: 600;
+}
+.mc-chip {
+  display: block;
+  flex: none;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--c) var(--ev-tint), var(--bg));
+  color: color-mix(in srgb, var(--c) var(--ev-ink), var(--ink));
+}
+.mc-chip.all {
+  background: var(--c);
+  color: #fff;
+}
+:root[data-theme='dark'] .mc-chip.all {
+  background: color-mix(in srgb, var(--c) 55%, var(--bg));
+}
+.mc-chip.is-done {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+.mc.other .mc-chip,
+.mc.past .mc-chip {
+  opacity: 0.6;
+}
+.mc-more {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink-3);
+  padding: 0 4px;
+}
+.mc-dot {
+  align-self: center;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--ink-3);
+}
+
+/* ---------- List ---------- */
+.list {
+  flex: 1;
+  min-height: 0;
+  padding: 0 calc(16px + var(--inset-right)) calc(100px + var(--inset-bottom)) calc(16px + var(--inset-left));
+}
+.list-date {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 16px 0 6px;
+  background: var(--bg);
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 22px;
+  letter-spacing: -0.005em;
+}
+.list-date small {
+  font-family: var(--font);
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.list-day.today .list-date span {
+  color: var(--red);
+}
+.list-empty {
+  font-size: 13.5px;
+  color: var(--ink-3);
+  padding: 2px 0 8px;
+}
+.list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 0;
+  text-align: left;
+  box-shadow: inset 0 -1px var(--line);
+  transition: opacity 0.2s;
+  cursor: pointer;
+}
+.list-item:active {
+  opacity: 0.6;
+}
+.list-item.past {
+  opacity: 0.55;
+}
+.li-time {
+  width: 46px;
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.li-time small {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+.li-bar {
+  width: 3px;
+  align-self: stretch;
+  border-radius: 2px;
+  background: var(--c);
+  flex: none;
+}
+.li-check {
+  flex: none;
+  width: 16px;
+  margin: 0 -2px 0 -3px;
+}
+.li-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+.li-title {
+  font-size: 15px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.list-item.is-done .li-title {
+  text-decoration: line-through;
+  color: var(--ink-3);
+}
+.li-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.list-more {
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+/* ---------- Mini month (date picker) ---------- */
+.mini-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 0 6px 6px;
+}
+.mini-head strong {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 20px;
+}
+.mini-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+.mini-dows span {
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+  padding: 4px 0;
+}
+.mini-days.from-r {
+  animation: mini-r 0.45s var(--spring);
+}
+.mini-days.from-l {
+  animation: mini-l 0.45s var(--spring);
+}
+.mini-day {
+  position: relative;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  font-size: 14.5px;
+  font-variant-numeric: tabular-nums;
+  border-radius: 999px;
+}
+.mini-day::before {
+  content: '';
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  z-index: -1;
+  transition:
+    background-color 0.2s,
+    transform 0.35s var(--spring-bounce);
+  transform: scale(0.6);
+}
+.mini-day:active::before {
+  background: var(--fill-2);
+  transform: none;
+}
+.mini-day {
+  isolation: isolate;
+}
+.mini-day.other {
+  color: var(--ink-3);
+}
+.mini-day.today {
+  color: var(--red);
+  font-weight: 600;
+}
+.mini-day.sel {
+  color: var(--on-ink);
+  font-weight: 600;
+}
+.mini-day.sel::before {
+  background: var(--ink);
+  transform: none;
+}
+.mini-day.sel.today::before {
+  background: var(--red);
+}
+.mini-day.sel.today {
+  color: #fff;
+}
+.mini-day i {
+  position: absolute;
+  bottom: 4px;
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--ink-3);
+}
+.mini-day.sel i {
+  background: var(--on-ink);
+}
+.mini-today {
+  display: block;
+  margin: 6px auto 0;
+  font-size: 14px;
+  color: var(--red);
+}
+
+@keyframes title-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes ghost-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+@keyframes mini-r {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes mini-l {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .cal-bar {
+    padding-left: 24px;
+  }
+  .v-week .ev {
+    padding: 3px 5px 3px 7px;
+  }
+  .v-week .ev-title {
+    font-size: 12px;
+  }
+}

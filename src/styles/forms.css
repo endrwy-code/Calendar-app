@@ -1,0 +1,349 @@
+/* ---------- Grouped forms (inside sheets), iOS inset-grouped style ---------- */
+.form {
+  display: grid;
+  gap: 10px;
+  padding-top: 2px;
+}
+.group-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 6px 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.group {
+  display: grid;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+/* Inset hairline between rows */
+.group > * + * {
+  background-image: linear-gradient(var(--line), var(--line));
+  background-size: calc(100% - 16px) 1px;
+  background-position: 100% 0;
+  background-repeat: no-repeat;
+}
+.cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 7px 14px 7px 16px;
+  text-align: left;
+  font-size: 16px;
+  color: var(--ink);
+  background-color: var(--surface);
+}
+button.cell,
+.cell.action {
+  transition: background-color 0.15s;
+}
+button.cell:active {
+  background-color: var(--fill-2);
+  transition-duration: 0.05s;
+}
+.cell.danger {
+  color: var(--red);
+}
+.cell.center {
+  justify-content: center;
+}
+.cell.bold {
+  font-weight: 600;
+}
+.cell-main {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.cell-main.link {
+  display: grid;
+  gap: 1px;
+}
+.cell-main small {
+  display: block;
+  font-size: 13px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.cell-main.struck {
+  text-decoration: line-through;
+  color: var(--ink-3);
+}
+.cell-icon {
+  color: var(--ink-2);
+  flex: none;
+}
+.cell-chev {
+  color: var(--ink-3);
+  flex: none;
+}
+.cell-value {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.cell .text-btn {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.cell .seg {
+  width: 128px;
+}
+
+.cell-input {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 0;
+  outline: none;
+  font-size: 16px;
+  background-color: var(--surface);
+}
+.cell-input.title {
+  font-size: 18px;
+  font-weight: 500;
+}
+.cell-input::placeholder,
+.cell-textarea::placeholder {
+  color: var(--ink-3);
+}
+.cell-textarea {
+  display: block;
+  width: 100%;
+  min-height: 92px;
+  padding: 12px 16px;
+  border: 0;
+  outline: none;
+  resize: none;
+  font-size: 16px;
+  line-height: 1.45;
+  background-color: var(--surface);
+}
+.cell-select {
+  appearance: none;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 16px;
+  color: var(--ink-2);
+  text-align: right;
+  text-align-last: right;
+  padding-right: 16px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
+    linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+  background-position:
+    calc(100% - 6px) 55%,
+    calc(100% - 1px) 55%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+.pill-input {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  outline: none;
+  height: 34px;
+  min-width: 0;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--fill-2);
+  font-size: 15.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.cell.pick .pill-input {
+  flex: 1 1 0;
+  width: 0;
+}
+.cell.pick .btn {
+  flex: none;
+}
+.cell .pill-input[type='date'] {
+  flex: 0 1 auto;
+}
+.cell .pill-input[type='time'] {
+  flex: none;
+}
+/* On phones the native picker opens on tap, so the inline icons only cost width */
+@media (pointer: coarse) {
+  .pill-input::-webkit-calendar-picker-indicator {
+    display: none;
+  }
+}
+.pill-input.num {
+  width: 64px;
+  text-align: center;
+}
+.pill-input::-webkit-calendar-picker-indicator {
+  opacity: 0.45;
+}
+.pill-input::-webkit-date-and-time-value {
+  text-align: center;
+}
+
+.form-foot {
+  padding: 0 8px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+.form-foot.center {
+  text-align: center;
+  padding-top: 10px;
+}
+
+.sheet-sub {
+  padding: 0 12px 4px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 21px;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+/* To-do sheet */
+.todo-sheet-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 4px 4px 6px;
+}
+.todo-sheet-glyph {
+  margin-top: 3px;
+  flex: none;
+}
+.title-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  padding: 0;
+  background: transparent;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  overflow: hidden;
+}
+
+/* Event sheet */
+.weekdays {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  gap: 4px;
+}
+.weekdays button {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--fill-2);
+  color: var(--ink-2);
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    transform 0.4s var(--spring-bounce);
+}
+.weekdays button:active {
+  transform: scale(0.9);
+  transition-duration: 0.08s;
+}
+.weekdays button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+.cal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px 0 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 14.5px;
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    box-shadow 0.2s,
+    transform 0.45s var(--spring);
+}
+.cal-chip:active {
+  transform: scale(0.95);
+  transition-duration: 0.08s;
+}
+.cal-chip[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--on-ink);
+  box-shadow: none;
+}
+
+/* Settings: calendars */
+.cal-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--c);
+  flex: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+  transition: transform 0.4s var(--spring-bounce);
+}
+.cal-dot:active {
+  transform: scale(0.85);
+}
+.cal-name {
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 16px;
+  padding: 6px 0;
+}
+.cal-name::placeholder {
+  color: var(--ink-3);
+}
+.cal-row {
+  display: grid;
+  background-color: var(--surface);
+}
+.cell.palette {
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 4px;
+  padding-bottom: 12px;
+  animation: fade-in 0.25s ease-out;
+}
+.swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--c);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  transition: transform 0.4s var(--spring-bounce);
+}
+.swatch[aria-pressed='true'] {
+  transform: scale(1.1);
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3.5px var(--c);
+}

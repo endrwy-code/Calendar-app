@@ -9,12 +9,10 @@ import { parseLocal, toDateKey, toLocalISO } from '../lib/dates';
 import { eventBounds } from '../lib/recurrence';
 
 export const DEFAULT_SETTINGS: Settings = {
-  name: '',
   theme: 'system',
   weekStartsOn: 1,
   timeFormat: '24h',
-  showWeekNumbers: true,
-  showTasksOnCalendar: true,
+  showWeekNumbers: false,
   defaultEventMinutes: 60,
   dayStartHour: 8,
   dayEndHour: 22,

@@ -1,49 +1,87 @@
 # Daybook
 
-Your calendar and your to-do list in one place. It's built to run as a
+A calm to-do list and a calendar in one place. It's built to run as a
 **Telegram Mini App in fullscreen**, and it also works as a normal web app (or
 an installable PWA) on your phone and desktop.
 
-## What's in it
+There are two places, switched with the **To-do | Calendar** control at the
+top. You can tap either side or drag the switch across. Settings sit behind the
+icon on the right.
 
-**Today** (the home screen)
-- A progress ring for today's tasks, a greeting, and what's on **now / next**.
-- **My Tasks** shows To Do, In Progress and Done counts. Tap one to jump to it.
-- **Today's schedule** lists events and time-blocked tasks in order. Free gaps
-  show up as **"Free for 2h 30m · Plan"**, so you can drop a to-do straight
-  into the gap.
-- **Needs a time**: open to-dos with no time yet. **Plan** puts one in your
-  next free slot.
-- **Overdue** tasks, and **Lists this week** cards with a progress ring per
-  calendar.
+## To-do
 
-**Calendar**
-- Day, 3-day, Week, Month and Schedule (agenda) views.
-- Week numbers, a today button, a month/date picker, and swipe left/right to
-  change week.
-- Tap an empty slot to create an event there.
+One running list that isn't tied to any day. Write things down as they come to
+you, then look over the list whenever you open the app.
+
+- **Write something down…** at the top adds a to-do. The field stays pinned
+  while you scroll.
+- Each to-do is **Not started**, **In progress** or **Done**, and the list is
+  grouped that way. Done is folded away until you open it.
+- **Tap the circle** to tick a to-do off. It fills in, the title is struck
+  through, and after a moment it moves to Done. Every change has **Undo**.
+- **Swipe right** to start (or pause) a to-do. **Swipe left** for *Calendar*
+  and *Delete*; a full swipe left deletes. On desktop, these show as buttons
+  when you hover over a row.
+- **Tap a to-do** to edit its title or notes, change its status, or add it to
+  the calendar.
+
+### Adding a to-do to the calendar
+
+*Add to calendar* (from the swipe, or from the to-do itself) asks how long it
+will take, then offers the **next free times on your calendar**: the earliest
+gap today, then one on each of the next days. Suggestions use your planning
+hours (Settings). You can also pick any date and time.
+
+The to-do stays on your list and also appears on the calendar as a grey time
+block with its own tick circle. Ticking it in either place updates both. The
+row shows when it's planned (red if that time has passed); tap that label to
+jump to the day. You can also go the other way: tap an empty slot on the
+calendar and choose **Or put a to-do here**.
+
+The page opens with *"If you fail to plan, you are planning to fail."* This
+line is usually attributed to Benjamin Franklin.
+
+## Calendar
+
+- **Day, 3 Days, Week, Month and List** views (the menu on the right also
+  shows and hides calendars). Tap the month title to jump to any date.
+- **Swipe to change week, day or month.** The next page follows your finger
+  and settles with a spring, based on how far and how fast you swiped. You can
+  catch it while it's still moving. On desktop, use the arrows or ← / →.
+- The **current time** shows as a red time label in the hour column, a faint
+  line across the week, and a solid line on today.
+- All-day events are drawn as bars across the days they cover.
+- Tap an empty slot to create an event there (a placeholder marks the spot).
+  Tap a day heading to open that day.
 - Events can repeat daily, on weekdays, weekly on chosen days, monthly or
-  yearly, with an end date. When you edit or delete a repeating event, you
-  choose "only this", "this and following" or "all".
-- Tasks show on the calendar too. Time-blocked tasks appear as dashed blocks
-  you can tick off, and tasks with only a due date sit in the all-day row.
-- Calendars (Personal, Work, Church…) have colours and can be shown or hidden.
-- On desktop, the task list sits next to the calendar. **Drag a task onto
-  the grid** to schedule it, or drag an event to move it.
+  yearly, with an end date. When you edit or delete a repeating event you
+  choose "this event only", "this and following" or "all events".
+- Calendars (Personal, Work, Church…) have colours and can be hidden.
 
-**Tasks**
-- **To Do / In Progress / Done**: tabs on a phone, a drag-and-drop board on
-  desktop.
-- Each task can have a priority, a list (calendar), a due date, a time block
-  with duration, steps (subtasks) and notes.
-- **Find the next free slot** checks your calendar and fills in the time
-  block for you.
-- Quick-add, filtering by list, and Undo on every change.
+## Motion
 
-**Settings**: your name, theme (System / Light / Dark, where System follows
-Telegram), week start, 12/24h clock, default event length, plannable hours,
-and calendar names and colours. There's also backup export/import, and you can
-remove the sample data.
+The animations follow Apple's *Designing Fluid Interfaces* (WWDC 2018) and
+the Human Interface Guidelines on motion. The building blocks are in
+`src/lib/motion.ts`:
+
+- **Springs, not timed curves.** Each spring is set by a damping ratio and a
+  response time. CSS transitions use the same springs, converted to
+  `linear()` easing curves.
+- **Direct manipulation.** Calendar pages, list rows, sheets and the segmented
+  switch track your finger 1:1.
+- **Momentum.** When you let go, the app projects your finger's speed forward
+  to choose where to settle, and the spring starts at that speed so there's
+  no visible jump.
+- **Interruptible.** You can grab anything while it's still animating.
+- **Rubber-banding.** Dragging past a limit gets harder the further you pull.
+- **Reduce Motion** is respected.
+
+## Settings
+
+Appearance (Automatic / Light / Dark, where Automatic follows Telegram), week
+start, 12/24h clock, week numbers, default event length, planning hours,
+calendar names, colours and visibility, plus backup export/import and sample
+data.
 
 ## Run it locally
 
@@ -58,7 +96,7 @@ That draws a fake status bar and Telegram's Close / ⋯ buttons, using typical
 iPhone inset values.
 
 ```bash
-npm test        # unit tests (recurrence, free-slot finder, overlap layout)
+npm test        # unit tests (recurrence, free slots, paging, springs, to-do ordering)
 npm run build   # type-check + production build into dist/
 ```
 
@@ -98,28 +136,33 @@ variables in `src/lib/telegram.ts` and `src/styles/tokens.css`:
 --inset-top: max(env(safe-area-inset-top), safeAreaInset.top + contentSafeAreaInset.top);
 ```
 
-Every header, drawer and sheet is laid out below `--inset-top`. The bottom
-navigation pads by the bottom inset (the home indicator), and the left and
-right insets are respected in landscape.
+The top bar and every sheet are laid out below `--inset-top`. Floating
+controls and sheets pad by the bottom inset (the home indicator), and the left
+and right insets are respected in landscape.
 
 ## Your data
 
 Everything is stored on the device. Inside Telegram (Bot API 9.0+) that's
 Telegram's `DeviceStorage` (5 MB per user per bot), mirrored to
-`localStorage`. In a browser it's `localStorage` only. Use **Settings → Data**
-to download, copy or import a backup. Nothing is sent to a server.
+`localStorage`. In a browser it's `localStorage` only. Use **Settings → Your
+data** to download, copy or import a backup. Nothing is sent to a server.
+Data from earlier versions loads as-is. Old due dates and steps still show
+on the to-do they belong to, so nothing is lost.
 
 ## Project layout
 
 ```
 src/
-  lib/          dates, recurrence, overlap layout, free-slot finder, Telegram bridge
-  store/        persisted data store (events, tasks, calendars, settings) + UI state
-  views/        Today, Calendar (TimeGrid, Month, Agenda), Tasks, Settings
-  components/   editor sheet, task item, sidebar/drawer, bottom nav, search, …
-  styles/       design tokens (light/dark), base controls, layout, views
+  lib/          motion (springs, momentum), pager, FLIP, dates, recurrence,
+                free-slot finder, Telegram bridge
+  store/        persisted data store (events, to-dos, calendars, settings) + UI state
+  views/        To-do (list + swipe rows), Calendar (TimeGrid, Month, List)
+  components/   sheets (to-do, add to calendar, event, settings), segmented
+                control, popover, toasts
+  styles/       tokens (light/dark), base controls, layout, to-do, calendar, forms
 ```
 
-Stack: React 19, TypeScript, Vite, Zustand, date-fns and lucide icons.
-The fonts are Poppins for headings and Inter for text, bundled so it works
-offline.
+Stack: React 19, TypeScript, Vite, Zustand, date-fns and lucide icons. Text
+uses the system font (SF Pro on Apple devices) with Inter as the fallback.
+Headings and the quote use Instrument Serif. Fonts are bundled so the app
+works offline.

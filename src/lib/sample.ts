@@ -15,7 +15,6 @@ export const DEFAULT_CALENDARS: CalendarCategory[] = [
 export function buildSampleData(now = new Date()) {
   const monday = startOfWeek(now, { weekStartsOn: 1 });
   const day = (offset: number) => toDateKey(addDays(monday, offset));
-  const today = toDateKey(now);
   const rel = (offset: number) => toDateKey(addDays(now, offset));
   const ts = Date.now();
 
@@ -68,7 +67,7 @@ export function buildSampleData(now = new Date()) {
       recurrence: { freq: 'weekly', interval: 1 },
     }),
     ev({ title: 'Family BBQ', calendarId: 'social', start: `${day(6)}T16:30`, end: `${day(6)}T20:00` }),
-    ev({ title: 'Quarterly planning', calendarId: 'work', start: day(3), end: day(3), allDay: true }),
+    ev({ title: 'Quarterly planning', calendarId: 'work', start: day(2), end: day(3), allDay: true }),
     ev({ title: 'Long weekend trip', calendarId: 'personal', start: day(12), end: day(13), allDay: true }),
   ];
 
@@ -87,42 +86,21 @@ export function buildSampleData(now = new Date()) {
     sample: true,
     ...p,
   });
-  const sub = (title: string, done = false) => ({ id: uid(), title, done });
+
+  let n = 0;
+  const at = () => ts - 60000 * n++;
 
   const tasks: Task[] = [
-    task({
-      title: 'Prepare workshop slides',
-      calendarId: 'work',
-      priority: 'high',
-      dueDate: rel(2),
-      scheduledStart: `${today}T14:00`,
-      durationMin: 90,
-      subtasks: [sub('Outline', true), sub('Draft slides'), sub('Rehearse')],
-    }),
-    task({ title: 'Book dentist appointment', calendarId: 'personal', priority: 'medium', dueDate: rel(1) }),
-    task({ title: 'Buy groceries', calendarId: 'personal', subtasks: [sub('Eggs'), sub('Oat milk'), sub('Coffee beans')] }),
-    task({ title: 'Plan youth night games', calendarId: 'church', priority: 'medium', dueDate: day(5), durationMin: 60 }),
-    task({ title: 'Return library books', calendarId: 'personal', priority: 'low', dueDate: rel(-1) }),
-    task({ title: 'Renew gym membership', calendarId: 'fitness', durationMin: 15 }),
-    task({
-      title: 'Update portfolio website',
-      calendarId: 'work',
-      status: 'in_progress',
-      priority: 'high',
-      durationMin: 60,
-      subtasks: [sub('New case study', true), sub('Refresh photos', true), sub('Fix contact form'), sub('Publish')],
-    }),
-    task({
-      title: 'Read “Deep Work”',
-      calendarId: 'personal',
-      status: 'in_progress',
-      scheduledStart: `${today}T21:30`,
-      durationMin: 30,
-    }),
-    task({ title: 'Send meeting notes', calendarId: 'work', status: 'done', completedAt: ts - 3600000 }),
-    task({ title: 'Set up new phone', calendarId: 'personal', status: 'done', completedAt: ts - 86400000 }),
-    task({ title: 'Confirm usher roster', calendarId: 'church', status: 'done', completedAt: ts - 2 * 86400000 }),
-    task({ title: 'Stretch routine', calendarId: 'fitness', status: 'done', completedAt: ts - 7200000 }),
+    task({ title: 'Book dentist appointment', createdAt: at() }),
+    task({ title: 'Buy groceries', notes: 'Eggs, oat milk, coffee beans', createdAt: at() }),
+    task({ title: 'Plan youth night games', durationMin: 60, scheduledStart: `${rel(1)}T19:00`, createdAt: at() }),
+    task({ title: 'Return library books', createdAt: at() }),
+    task({ title: 'Renew gym membership', durationMin: 15, createdAt: at() }),
+    task({ title: 'Update portfolio website', status: 'in_progress', durationMin: 60, createdAt: at() }),
+    task({ title: 'Prepare workshop slides', status: 'in_progress', durationMin: 90, scheduledStart: `${rel(0)}T14:00`, createdAt: at() }),
+    task({ title: 'Send meeting notes', status: 'done', completedAt: ts - 3600000, createdAt: at() }),
+    task({ title: 'Set up new phone', status: 'done', completedAt: ts - 86400000, createdAt: at() }),
+    task({ title: 'Confirm usher roster', status: 'done', completedAt: ts - 2 * 86400000, createdAt: at() }),
   ];
 
   return { events, tasks };
