@@ -10,6 +10,9 @@ import { haptic } from '../lib/telegram';
 import { StatusGlyph } from '../components/StatusCircle';
 
 const ACTION_W = 74;
+
+/** Where a row sits in its section's card (for rounded corners and separators). */
+export type RowPos = 'only' | 'first' | 'mid' | 'last';
 const LEAD_TRIGGER = 72;
 
 /* Only one row is swiped open at a time; touching anything else closes it. */
@@ -24,7 +27,7 @@ if (typeof window !== 'undefined') {
   );
 }
 
-export const TodoRow = memo(function TodoRow({ task, vanishOnDone }: { task: Task; vanishOnDone: boolean }) {
+export const TodoRow = memo(function TodoRow({ task, pos, vanishOnDone }: { task: Task; pos: RowPos; vanishOnDone: boolean }) {
   const openTodo = useUI((s) => s.openTodo);
   const openSchedule = useUI((s) => s.openSchedule);
   const goToDate = useUI((s) => s.goToDate);
@@ -195,7 +198,7 @@ export const TodoRow = memo(function TodoRow({ task, vanishOnDone }: { task: Tas
   return (
     <div
       ref={rowRef}
-      className={`todo-row ${open ? 'is-open' : ''} ${completing === 'vanish' ? 'vanish' : ''}`}
+      className={`todo-row p-${pos} ${open ? 'is-open' : ''} ${completing === 'vanish' ? 'vanish' : ''}`}
       data-flip={task.id}
     >
       <div ref={leadRef} className={`swipe-lead ${task.status === 'in_progress' ? 'pause' : ''} ${armed && side === 1 ? 'armed' : ''}`} aria-hidden={side !== 1}>
@@ -248,7 +251,7 @@ export const TodoRow = memo(function TodoRow({ task, vanishOnDone }: { task: Tas
           onClick={onCheck}
           aria-label={task.status === 'done' ? `Mark “${task.title}” as not done` : `Complete “${task.title}”`}
         >
-          <StatusGlyph status={shownStatus} />
+          <StatusGlyph status={shownStatus} size={24} />
         </button>
         <div className="todo-text">
           <span className="todo-title">{task.title}</span>
@@ -260,8 +263,8 @@ export const TodoRow = memo(function TodoRow({ task, vanishOnDone }: { task: Tas
                   onClick={() => goToDate(task.scheduledStart!.slice(0, 10))}
                   aria-label="Show on calendar"
                 >
-                  <CalendarClock size={12.5} />
-                  {relativeDayLabel(sched)}, {fmtTime(sched, tf)}
+                  <CalendarClock size={13} strokeWidth={1.9} />
+                  {relativeDayLabel(sched)} · {fmtTime(sched, tf)}
                 </button>
               )}
               {due && (

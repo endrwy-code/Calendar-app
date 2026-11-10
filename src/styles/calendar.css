@@ -7,42 +7,51 @@
   flex-direction: column;
 }
 .cal-bar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 14px 8px 18px;
+  padding-right: 6px;
 }
 .cal-title {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   min-width: 0;
-  padding: 2px 0;
+  height: 44px;
+  padding: 0 6px;
+  margin-left: 2px;
+  border-radius: 10px;
   color: var(--ink);
+  transition: background-color 0.15s;
+}
+.cal-title:active {
+  background: var(--fill);
 }
 .cal-title-text {
   font-family: var(--serif);
-  font-size: 31px;
-  line-height: 1.05;
-  letter-spacing: -0.01em;
+  font-size: 25px;
+  font-weight: 560;
+  line-height: 1;
+  letter-spacing: -0.02em;
   white-space: nowrap;
   animation: title-in 0.5s var(--spring);
 }
 .cal-year {
   font-family: var(--font);
   font-size: 15px;
+  font-weight: 500;
   color: var(--ink-3);
   margin-left: 8px;
   letter-spacing: 0;
 }
-.cal-title-chev {
-  color: var(--ink-3);
-  margin-top: 4px;
+.cal-title-caret {
+  flex: none;
+  color: var(--ink-2);
+  margin-top: 2px;
   transition: transform 0.45s var(--spring);
 }
-.cal-title-chev.up {
+.cal-title-caret.up {
   transform: rotate(180deg);
+}
+.today-btn.is-today {
+  color: var(--ink);
 }
 .cal-body {
   position: relative;
@@ -50,27 +59,6 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-.fab {
-  position: absolute;
-  z-index: 6;
-  right: calc(18px + var(--inset-right));
-  bottom: calc(18px + var(--inset-bottom));
-  width: 54px;
-  height: 54px;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  background: var(--ink);
-  color: var(--on-ink);
-  box-shadow:
-    0 10px 28px -8px rgba(0, 0, 0, 0.4),
-    0 2px 6px rgba(0, 0, 0, 0.12);
-}
-.fab:active {
-  transform: scale(0.9);
-  transition-duration: 0.08s;
 }
 
 /* ---------- Time grid (day / 3 days / week) ---------- */
@@ -112,6 +100,16 @@
   color: var(--ink-3);
 }
 .tg-corner .wk {
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 5px;
+  border-radius: 7px;
+  background: var(--fill-2);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 .tg-corner.small {
@@ -124,7 +122,7 @@
 .tg-head {
   flex: none;
   display: flex;
-  height: 52px;
+  height: 60px;
   box-shadow: inset 0 -1px var(--line);
 }
 .tg-dhs {
@@ -140,20 +138,18 @@
   min-width: 0;
 }
 .dh-dow {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-3);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-2);
 }
 .dh-num {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
-  font-size: 17px;
-  font-weight: 500;
+  font-size: 18px;
+  font-weight: 560;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
   transition:
@@ -186,7 +182,7 @@
   flex: none;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  height: 54px;
+  height: 60px;
   padding: 0 8px;
 }
 .strip-sel {
@@ -198,14 +194,14 @@
   display: grid;
   justify-items: center;
   align-content: center;
-  padding-top: 18px;
+  padding-top: 20px;
   transform: translate3d(calc(var(--i) * 100%), 0, 0);
   transition: transform 0.5s var(--spring);
   pointer-events: none;
 }
 .strip-sel i {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
   background: var(--ink);
 }
@@ -279,7 +275,7 @@
 }
 .tg-canvas {
   position: relative;
-  margin: 10px 0 calc(90px + var(--inset-bottom));
+  margin: 10px 0 24px;
 }
 .tg-canvas > .tg-vp {
   position: absolute;
@@ -297,9 +293,9 @@
   position: absolute;
   right: 8px;
   transform: translateY(-50%);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 500;
-  color: var(--ink-3);
+  color: var(--ink-2);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   transition: opacity 0.25s;
@@ -312,11 +308,11 @@
   top: 0;
   right: 3px;
   z-index: 2;
-  padding: 1px 5px;
+  padding: 1px 6px;
   border-radius: 999px;
   background: var(--red);
   color: #fff;
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   line-height: 15px;
@@ -345,14 +341,14 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 3px 5px 3px 7px;
+  padding: 4px 6px 4px 8px;
   border-radius: 6px;
   overflow: hidden;
   background: color-mix(in srgb, var(--c) var(--ev-tint), var(--bg));
   color: color-mix(in srgb, var(--c) var(--ev-ink), var(--ink));
   /* colour bar on the left, and a 1px gap ring so overlapping blocks stay distinct */
   box-shadow:
-    inset 2.5px 0 var(--c),
+    inset 3px 0 var(--c),
     0 0 0 1px var(--bg);
   cursor: pointer;
   transition:
@@ -370,9 +366,9 @@
 }
 .ev-title {
   flex: none;
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 600;
-  line-height: 14px;
+  line-height: 15px;
   overflow-wrap: normal;
   word-break: normal;
   hyphens: manual;
@@ -383,9 +379,9 @@
 }
 .ev-time {
   flex: none;
-  font-size: 10.5px;
-  line-height: 13px;
-  opacity: 0.78;
+  font-size: 11.5px;
+  line-height: 14px;
+  opacity: 0.75;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -402,17 +398,18 @@
   text-overflow: ellipsis;
 }
 .v-week .ev {
-  padding: 2px 3px 2px 5px;
+  padding: 3px 3px 3px 6px;
   border-radius: 5px;
 }
 .v-week .ev-title {
-  font-size: 10.5px;
-  line-height: 13px;
+  font-size: 11.5px;
+  line-height: 14px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
 .v-week .ev-time {
-  font-size: 9.5px;
+  font-size: 10.5px;
+  line-height: 13px;
 }
 .ev.is-task {
   --c: var(--ink-3);
@@ -491,7 +488,6 @@
   touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
-  padding-bottom: var(--inset-bottom);
 }
 .month-dows,
 .month-week {
@@ -504,11 +500,10 @@
 }
 .month-dows {
   flex: none;
-  padding: 2px 0 7px;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--ink-3);
+  padding: 2px 0 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-2);
   text-align: center;
   box-shadow: inset 0 -1px var(--line);
 }
@@ -536,7 +531,8 @@
   min-height: 0;
 }
 .wk-col {
-  font-size: 9.5px;
+  font-size: 10.5px;
+  font-weight: 600;
   color: var(--ink-3);
   text-align: center;
   padding-top: 7px;
@@ -566,12 +562,12 @@
   display: grid;
   place-items: center;
   min-width: 24px;
-  height: 22px;
-  padding: 0 4px;
+  height: 24px;
+  padding: 0 5px;
   margin-bottom: 2px;
   border-radius: 999px;
-  font-size: 12.5px;
-  font-weight: 500;
+  font-size: 13.5px;
+  font-weight: 560;
   font-variant-numeric: tabular-nums;
 }
 .mc.other .mc-num {
@@ -585,12 +581,12 @@
 .mc-chip {
   display: block;
   flex: none;
-  height: 16px;
+  height: 17px;
   padding: 0 4px;
   border-radius: 4px;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 500;
-  line-height: 16px;
+  line-height: 17px;
   white-space: nowrap;
   overflow: hidden;
   background: color-mix(in srgb, var(--c) var(--ev-tint), var(--bg));
@@ -629,7 +625,7 @@
 .list {
   flex: 1;
   min-height: 0;
-  padding: 0 calc(16px + var(--inset-right)) calc(100px + var(--inset-bottom)) calc(16px + var(--inset-left));
+  padding: 0 calc(16px + var(--inset-right)) 40px calc(16px + var(--inset-left));
 }
 .list-date {
   position: sticky;
@@ -641,9 +637,9 @@
   padding: 16px 0 6px;
   background: var(--bg);
   font-family: var(--serif);
-  font-weight: 400;
-  font-size: 22px;
-  letter-spacing: -0.005em;
+  font-weight: 540;
+  font-size: 21px;
+  letter-spacing: -0.015em;
 }
 .list-date small {
   font-family: var(--font);

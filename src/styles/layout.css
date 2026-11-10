@@ -7,37 +7,120 @@
   background: var(--bg);
 }
 
-.topbar {
+/* ---------- Screen headers ----------
+   One quiet row per screen, Proton-style: big, plain icons in ink at the
+   edges, the title next to the menu. Laid out below Telegram's controls. */
+.bar {
   flex: none;
-  display: grid;
-  grid-template-columns: 48px 1fr 48px;
-  align-items: center;
-  justify-items: center;
-  padding: calc(var(--inset-top) + 6px) calc(8px + var(--inset-right)) 8px calc(8px + var(--inset-left));
   position: relative;
-  z-index: 10;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: calc(var(--bar-h) + var(--inset-top));
+  padding: var(--inset-top) 8px 0;
   background: var(--bg);
 }
-.topbar-side {
-  width: 48px;
+.bar-btn {
+  width: 44px;
+  height: 44px;
+  color: var(--ink);
+}
+.bar-btn-space {
+  width: 44px;
+  flex: none;
+}
+.bar-date {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Tab bar ----------
+   Two tabs in thumb reach. The highlight is a segmented-control thumb, so it
+   springs between tabs and can be dragged across. */
+.tabbar {
+  flex: none;
+  position: relative;
+  z-index: 10;
+  padding: 2px calc(12px + var(--inset-right)) max(var(--inset-bottom), 6px) calc(12px + var(--inset-left));
+  background: var(--bg);
+  box-shadow: inset 0 1px var(--line);
+  transition: background-color 0.3s;
+}
+.app[data-tab='todo'] .tabbar {
+  background: var(--group);
+}
+.seg.tabbar-seg {
+  width: min(100%, 340px);
+  height: calc(var(--tabbar-h) - 4px);
+  margin: 0 auto;
+  padding: 2px;
+  border-radius: 0;
+  background: none;
+}
+.tabbar-seg .seg-thumb {
+  background: none;
+  box-shadow: none;
+}
+.tabbar-seg .seg-thumb::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  width: 64px;
+  height: 32px;
+  margin-left: -32px;
+  border-radius: 999px;
+  background: var(--fill-2);
+}
+.tabbar-seg .seg-thumb.pressed {
+  scale: 0.92;
+}
+.tabbar-seg .seg-opt {
   display: flex;
-}
-.topbar-side.right {
-  justify-content: flex-end;
-}
-.topbar-side .icon-btn {
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 3px;
+  padding: 6px 0 0;
+  overflow: visible;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--ink-2);
 }
-.seg.tabs {
-  width: min(240px, 62vw);
-  height: 36px;
-  border-radius: 11px;
+.tabbar-seg .seg-opt.on {
+  color: var(--ink);
+  font-weight: 600;
 }
-.seg.tabs .seg-thumb {
-  border-radius: 9px;
+.tab-pill {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 32px;
 }
-.seg.tabs .seg-opt {
-  font-size: 14px;
+.tab-label {
+  line-height: 15px;
+  letter-spacing: 0;
+}
+.tab-icon .ti-solid,
+.tab-icon .ti-line {
+  transition: opacity 0.2s;
+}
+.tab-icon .ti-solid {
+  opacity: 0;
+}
+.tab-icon.on .ti-solid {
+  opacity: 1;
+}
+.tab-icon.on .ti-line {
+  opacity: 0;
 }
 
 /* Two screens stay mounted; switching cross-fades with a small shift that
@@ -254,7 +337,7 @@
   position: fixed;
   z-index: 80;
   left: 50%;
-  bottom: calc(var(--inset-bottom) + 18px);
+  bottom: calc(max(var(--inset-bottom), 6px) + var(--tabbar-h) + 10px);
   transform: translateX(-50%);
   display: grid;
   justify-items: center;
@@ -262,9 +345,6 @@
   width: min(92vw, 440px);
   pointer-events: none;
   transition: bottom 0.5s var(--spring);
-}
-.app[data-tab='calendar'] .toasts {
-  bottom: calc(var(--inset-bottom) + 86px);
 }
 .toast {
   pointer-events: auto;
@@ -309,6 +389,132 @@
   color: #fff;
   font-weight: 600;
   font-size: 13.5px;
+}
+
+/* ---------- Side menu ---------- */
+.drawer-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+}
+.drawer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(312px, 84vw);
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--inset-top) + 6px) 0 var(--inset-bottom) var(--inset-left);
+  background: var(--sheet);
+  border-radius: 0 22px 22px 0;
+  box-shadow: var(--shadow-lg);
+  transform: translate3d(-100%, 0, 0);
+  will-change: transform;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.drawer-head {
+  flex: none;
+  padding: 16px 24px 14px;
+}
+.drawer-brand {
+  font-family: var(--serif);
+  font-size: 28px;
+  font-weight: 560;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+}
+.drawer-date {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.drawer-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0 12px 12px;
+}
+.drawer-label {
+  padding: 14px 12px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.drawer-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  height: 46px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-size: 16px;
+  text-align: left;
+  color: var(--ink);
+  transition: background-color 0.15s;
+}
+.drawer-item > svg {
+  flex: none;
+  color: var(--ink-2);
+}
+.drawer-item:active {
+  background: var(--fill);
+}
+.drawer-item.on {
+  background: var(--fill-2);
+  font-weight: 600;
+}
+.drawer-item.on > svg {
+  color: var(--ink);
+}
+.drawer-cal-dot {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+}
+.drawer-cal-dot::before {
+  content: '';
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: var(--c);
+}
+.drawer-check {
+  margin-left: auto;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background: var(--c);
+  color: #fff;
+  transition:
+    background-color 0.2s,
+    box-shadow 0.2s;
+}
+.drawer-item.off .drawer-check {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--line-2);
+}
+.drawer-item.off > span:nth-child(2) {
+  color: var(--ink-2);
+}
+.drawer-sep {
+  height: 1px;
+  margin: 10px 12px 4px;
+  background: var(--line);
+}
+.drawer-foot {
+  flex: none;
+  padding: 8px 12px 12px;
+  box-shadow: inset 0 1px var(--line);
 }
 
 /* ---------- Popover menus ---------- */

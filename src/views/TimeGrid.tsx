@@ -287,7 +287,7 @@ export function TimeGrid({ view, controlRef }: { view: ViewMode; controlRef: Mut
                   }
                 }}
               >
-                <span className="dh-dow">{format(d, 'EEEEE')}</span>
+                <span className="dh-dow">{format(d, 'EEE')}</span>
                 <span className="dh-num">{d.getDate()}</span>
               </button>
             );
@@ -295,7 +295,13 @@ export function TimeGrid({ view, controlRef }: { view: ViewMode; controlRef: Mut
         </div>
       ) : (
         <div className="tg-head">
-          <div className="tg-corner">{showWeekNumbers && view === 'week' && <span className="wk">W{isoWeek(start)}</span>}</div>
+          <div className="tg-corner">
+            {showWeekNumbers && view === 'week' && (
+              <span className="wk" aria-label={`Week ${isoWeek(start)}`}>
+                {isoWeek(start)}
+              </span>
+            )}
+          </div>
           <div className="tg-vp">
             <div className="tg-track" ref={headTrack}>
               {panes.map((p) => (
@@ -313,7 +319,7 @@ export function TimeGrid({ view, controlRef }: { view: ViewMode; controlRef: Mut
                         }}
                         aria-label={format(d, 'EEEE d MMMM')}
                       >
-                        <span className="dh-dow">{format(d, n === 7 ? 'EEEEE' : 'EEE')}</span>
+                        <span className="dh-dow">{format(d, 'EEE')}</span>
                         <span className="dh-num">{d.getDate()}</span>
                       </button>
                     );
@@ -484,10 +490,10 @@ const DayColumn = memo(function DayColumn(props: {
         const done = b.task?.status === 'done';
         const canDrag = fine && !b.recurring;
         // Fit whole lines only: title lines first, then the time if there's room for it.
-        const lineH = narrow ? 13 : 14;
-        const inner = height - (narrow ? 4 : 6);
+        const lineH = narrow ? 14 : 15;
+        const inner = height - (narrow ? 6 : 8);
         const showTime = inner >= lineH * (narrow ? 3 : 2);
-        const lines = Math.max(1, Math.floor((inner - (showTime ? 13 : 0)) / lineH));
+        const lines = Math.max(1, Math.floor((inner - (showTime ? 14 : 0)) / lineH));
         return (
           <div
             key={b.key}

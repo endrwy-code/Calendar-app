@@ -1,11 +1,12 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { Settings2 } from 'lucide-react';
 import { useData } from './store/data';
 import { useUI } from './store/ui';
 import { useMediaQuery } from './lib/hooks';
 import { bindBackButton, isTgSimulation, onTelegramThemeChange, setTelegramChrome, telegramColorScheme } from './lib/telegram';
 import { haptic } from './lib/telegram';
 import { Segmented } from './components/Segmented';
+import { CalendarTabIcon, TodoTabIcon } from './components/Icons';
+import { MenuDrawer } from './components/MenuDrawer';
 import { closeTopSheet } from './components/Sheet';
 import { EventSheet } from './components/EventSheet';
 import { TodoSheet } from './components/TodoSheet';
@@ -27,18 +28,41 @@ function useEffectiveTheme(): 'light' | 'dark' {
   return tgScheme ?? (systemDark ? 'dark' : 'light');
 }
 
-const TABS: { value: Tab; label: string }[] = [
-  { value: 'todo', label: 'To-do' },
-  { value: 'calendar', label: 'Calendar' },
-];
+function tabOptions(tab: Tab) {
+  return [
+    {
+      value: 'todo' as Tab,
+      label: (
+        <>
+          <span className="tab-pill">
+            <TodoTabIcon active={tab === 'todo'} />
+          </span>
+          <span className="tab-label">To-do</span>
+        </>
+      ),
+      ariaLabel: 'To-do',
+    },
+    {
+      value: 'calendar' as Tab,
+      label: (
+        <>
+          <span className="tab-pill">
+            <CalendarTabIcon active={tab === 'calendar'} />
+          </span>
+          <span className="tab-label">Calendar</span>
+        </>
+      ),
+      ariaLabel: 'Calendar',
+    },
+  ];
+}
 
 export default function App() {
   const hydrated = useData((s) => s.hydrated);
   const theme = useEffectiveTheme();
   const tab = useUI((s) => s.tab);
   const setTab = useUI((s) => s.setTab);
-  const setSettingsOpen = useUI((s) => s.setSettingsOpen);
-  const anySheet = useUI((s) => !!(s.eventEditor || s.todoId || s.scheduleId || s.settingsOpen));
+  const anySheet = useUI((s) => !!(s.eventEditor || s.todoId || s.scheduleId || s.settingsOpen || s.menuOpen));
 
   // The calendar mounts once the app is idle (or on first visit), then stays mounted to keep its scroll position.
   const [calendarReady, setCalendarReady] = useState(tab === 'calendar');
@@ -63,25 +87,6 @@ export default function App() {
 
   return (
     <div className="app" data-tab={tab}>
-      <header className="topbar">
-        <span className="topbar-side" />
-        <Segmented
-          className="tabs"
-          label="Section"
-          options={TABS}
-          value={tab}
-          onChange={(t) => {
-            haptic.select();
-            setTab(t);
-          }}
-        />
-        <span className="topbar-side right">
-          <button className="icon-btn" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
-            <Settings2 size={20} strokeWidth={1.8} />
-          </button>
-        </span>
-      </header>
-
       <main className="stage">
         <section className={`screen screen-todo ${tab === 'todo' ? 'is-active' : ''}`} inert={tab !== 'todo'} aria-label="To-do">
           <TodoView />
@@ -91,6 +96,21 @@ export default function App() {
         </section>
       </main>
 
+      {/* Two tabs at the bottom, in thumb reach. The highlight springs across and can be dragged. */}
+      <nav className="tabbar">
+        <Segmented
+          className="tabbar-seg"
+          label="Section"
+          options={tabOptions(tab)}
+          value={tab}
+          onChange={(t) => {
+            haptic.select();
+            setTab(t);
+          }}
+        />
+      </nav>
+
+      <MenuDrawer />
       <TodoSheet />
       <ScheduleSheet />
       <EventSheet />

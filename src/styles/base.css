@@ -25,6 +25,8 @@ body {
   overflow: hidden;
   overscroll-behavior: none;
   font-feature-settings: 'cv11', 'ss01';
+  /* Fraunces: soft terminals, no "wonky" letters. Other faces ignore these axes. */
+  font-variation-settings: 'SOFT' 100, 'WONK' 0;
 }
 
 h1,
@@ -91,7 +93,6 @@ button:disabled {
 .btn,
 .icon-btn,
 .pill,
-.fab,
 .text-btn {
   transition:
     transform 0.5s var(--spring),

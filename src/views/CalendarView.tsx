@@ -1,40 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useData } from '../store/data';
 import { useUI } from '../store/ui';
 import { todayKey } from '../lib/dates';
 import { useMediaQuery } from '../lib/hooks';
 import { haptic } from '../lib/telegram';
 import { pageContains, periodTitle, shiftCursor } from '../lib/period';
-import type { ViewMode } from '../types';
 import { TimeGrid, type PagerControl } from './TimeGrid';
 import { MonthView } from './MonthView';
 import { ListView } from './ListView';
 import { MiniMonth } from '../components/MiniMonth';
 import { Popover } from '../components/Popover';
-
-export const VIEW_LABELS: Record<ViewMode, string> = {
-  day: 'Day',
-  '3day': '3 Days',
-  week: 'Week',
-  month: 'Month',
-  agenda: 'List',
-};
+import { CaretIcon, MenuIcon, PlusIcon, TodayIcon } from '../components/Icons';
 
 export function CalendarView({ active }: { active: boolean }) {
   const view = useData((s) => s.settings.calendarView);
   const weekStartsOn = useData((s) => s.settings.weekStartsOn);
-  const calendars = useData((s) => s.calendars);
-  const toggleCalendar = useData((s) => s.toggleCalendar);
-  const updateSettings = useData((s) => s.updateSettings);
   const cursor = useUI((s) => s.cursor);
   const setCursor = useUI((s) => s.setCursor);
   const openEvent = useUI((s) => s.openEvent);
+  const setMenuOpen = useUI((s) => s.setMenuOpen);
   const wide = useMediaQuery('(min-width: 1024px)');
   const control = useRef<PagerControl | null>(null);
   const titleRef = useRef<HTMLButtonElement>(null);
-  const viewRef = useRef<HTMLButtonElement>(null);
-  const [menu, setMenu] = useState<null | 'date' | 'view'>(null);
+  const [datePop, setDatePop] = useState(false);
 
   const title = periodTitle(view, cursor, weekStartsOn);
   const today = todayKey();
@@ -62,17 +51,12 @@ export function CalendarView({ active }: { active: boolean }) {
     } else setCursor(today);
   };
 
-  const setView = (v: ViewMode) => {
-    haptic.select();
-    updateSettings({ calendarView: v });
-  };
-
   // ← / → page on desktop
   useEffect(() => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
-      if (t.closest('input, textarea, select, [contenteditable]') || document.querySelector('.sheet-layer')) return;
+      if (t.closest('input, textarea, select, [contenteditable]') || document.querySelector('.sheet-layer, .drawer-layer')) return;
       if (e.key === 'ArrowLeft') page(-1);
       else if (e.key === 'ArrowRight') page(1);
       else if (e.key === 't') goToday();
@@ -83,39 +67,49 @@ export function CalendarView({ active }: { active: boolean }) {
 
   return (
     <div className="calendar">
-      <div className="cal-bar">
+      {/* One row, like Proton: menu · month · today · new */}
+      <header className="bar cal-bar">
+        <button className="icon-btn bar-btn" aria-label="Menu" onClick={() => setMenuOpen(true)}>
+          <MenuIcon />
+        </button>
         <button
           ref={titleRef}
           className="cal-title"
-          onClick={() => setMenu(menu === 'date' ? null : 'date')}
-          aria-expanded={menu === 'date'}
+          onClick={() => setDatePop(!datePop)}
+          aria-expanded={datePop}
           aria-label="Pick a date"
         >
           <span className="cal-title-text" key={title.main + title.year}>
             {title.main}
             {title.year && <span className="cal-year">{title.year}</span>}
           </span>
-          <ChevronDown size={16} strokeWidth={2.2} className={`cal-title-chev ${menu === 'date' ? 'up' : ''}`} />
+          <CaretIcon className={`cal-title-caret ${datePop ? 'up' : ''}`} />
         </button>
         <span className="spacer" />
         {wide && (
           <>
-            <button className="icon-btn" aria-label="Previous" onClick={() => page(-1)}>
-              <ChevronLeft size={20} />
+            <button className="icon-btn bar-btn" aria-label="Previous" onClick={() => page(-1)}>
+              <ChevronLeft size={22} strokeWidth={1.8} />
             </button>
-            <button className="icon-btn" aria-label="Next" onClick={() => page(1)}>
-              <ChevronRight size={20} />
+            <button className="icon-btn bar-btn" aria-label="Next" onClick={() => page(1)}>
+              <ChevronRight size={22} strokeWidth={1.8} />
             </button>
           </>
         )}
-        <button className={`pill ${onToday ? 'quiet' : ''}`} onClick={goToday}>
-          Today
+        <button className={`icon-btn bar-btn today-btn ${onToday ? 'is-today' : ''}`} aria-label="Go to today" title="Today" onClick={goToday}>
+          <TodayIcon day={Number(today.slice(8, 10))} />
         </button>
-        <button ref={viewRef} className="pill" onClick={() => setMenu(menu === 'view' ? null : 'view')} aria-expanded={menu === 'view'}>
-          {VIEW_LABELS[view]}
-          <ChevronDown size={14} strokeWidth={2.2} />
+        <button
+          className="icon-btn bar-btn"
+          aria-label="New event"
+          onClick={() => {
+            haptic.tap();
+            openEvent({});
+          }}
+        >
+          <PlusIcon />
         </button>
-      </div>
+      </header>
 
       <div className="cal-body">
         {view === 'month' ? (
@@ -127,19 +121,8 @@ export function CalendarView({ active }: { active: boolean }) {
         )}
       </div>
 
-      <button
-        className="fab"
-        aria-label="New event"
-        onClick={() => {
-          haptic.tap();
-          openEvent({});
-        }}
-      >
-        <Plus size={24} strokeWidth={2} />
-      </button>
-
-      {menu === 'date' && titleRef.current && (
-        <Popover anchor={titleRef.current} align="left" onClose={() => setMenu(null)} className="date-pop" label="Pick a date">
+      {datePop && titleRef.current && (
+        <Popover anchor={titleRef.current} align="left" onClose={() => setDatePop(false)} className="date-pop" label="Pick a date">
           {(close) => (
             <MiniMonth
               value={cursor}
@@ -149,47 +132,6 @@ export function CalendarView({ active }: { active: boolean }) {
                 close();
               }}
             />
-          )}
-        </Popover>
-      )}
-      {menu === 'view' && viewRef.current && (
-        <Popover anchor={viewRef.current} align="right" onClose={() => setMenu(null)} className="menu" label="Calendar view">
-          {(close) => (
-            <>
-              {(Object.keys(VIEW_LABELS) as ViewMode[]).map((v) => (
-                <button
-                  key={v}
-                  role="menuitemradio"
-                  aria-checked={view === v}
-                  className="menu-item"
-                  onClick={() => {
-                    setView(v);
-                    close();
-                  }}
-                >
-                  <span className="menu-check">{view === v && <Check size={15} strokeWidth={2.4} />}</span>
-                  {VIEW_LABELS[v]}
-                </button>
-              ))}
-              <div className="menu-sep" />
-              <div className="menu-label">Calendars</div>
-              {calendars.map((c) => (
-                <button
-                  key={c.id}
-                  role="menuitemcheckbox"
-                  aria-checked={c.visible}
-                  className={`menu-item c-${c.color}`}
-                  onClick={() => {
-                    haptic.select();
-                    toggleCalendar(c.id);
-                  }}
-                >
-                  <span className="menu-check">{c.visible && <Check size={15} strokeWidth={2.4} />}</span>
-                  {c.name}
-                  <span className="dot" />
-                </button>
-              ))}
-            </>
           )}
         </Popover>
       )}

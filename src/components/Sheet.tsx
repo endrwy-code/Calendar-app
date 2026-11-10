@@ -5,6 +5,15 @@ import { animateSpring, project, rubberBand, VelocityTracker, type SpringAnimati
 
 /* Open sheets, top-most last. Telegram's back button and Escape close the top one with its animation. */
 const stack: { close: () => void }[] = [];
+/** Other overlays (the menu drawer) join the same stack so Back / Escape close whatever is on top. */
+export const overlayStack = {
+  push: (e: { close: () => void }) => stack.push(e),
+  remove: (e: { close: () => void }) => {
+    const i = stack.indexOf(e);
+    if (i >= 0) stack.splice(i, 1);
+  },
+  isTop: (e: { close: () => void }) => stack[stack.length - 1] === e,
+};
 export function closeTopSheet(): boolean {
   const top = stack[stack.length - 1];
   if (!top) return false;

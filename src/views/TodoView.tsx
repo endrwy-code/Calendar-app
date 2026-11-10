@@ -1,11 +1,14 @@
 import { useMemo, useRef, useState, type UIEvent } from 'react';
-import { ChevronRight, Plus } from 'lucide-react';
+import { format } from 'date-fns';
+import { ChevronRight } from 'lucide-react';
 import { useData } from '../store/data';
+import { useUI } from '../store/ui';
 import { orderTodos } from '../lib/selectors';
 import { useFlip } from '../lib/useFlip';
 import { haptic } from '../lib/telegram';
 import { ActionSheet } from '../components/Sheet';
-import { TodoRow } from './TodoRow';
+import { MenuIcon, PlusIcon } from '../components/Icons';
+import { TodoRow, type RowPos } from './TodoRow';
 import type { Task, TaskStatus } from '../types';
 
 const SECTIONS: { status: TaskStatus; label: string }[] = [
@@ -14,12 +17,13 @@ const SECTIONS: { status: TaskStatus; label: string }[] = [
   { status: 'done', label: 'Done' },
 ];
 
-type Item = { kind: 'head'; status: TaskStatus; label: string; count: number } | { kind: 'row'; task: Task };
+type Item = { kind: 'head'; status: TaskStatus; label: string; count: number } | { kind: 'row'; task: Task; pos: RowPos };
 
 export function TodoView() {
   const tasks = useData((s) => s.tasks);
   const addTask = useData((s) => s.addTask);
   const clearCompleted = useData((s) => s.clearCompleted);
+  const setMenuOpen = useUI((s) => s.setMenuOpen);
   const [text, setText] = useState('');
   const [showDone, setShowDone] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -32,13 +36,17 @@ export function TodoView() {
   useFlip(listRef);
 
   // One flat, keyed list so a row keeps its DOM node when it moves between sections.
+  // Each section is drawn as a card: rows know whether they open or close it.
   const items: Item[] = [];
   for (const s of SECTIONS) {
     const list = groups[s.status];
     if (!list.length) continue;
     items.push({ kind: 'head', status: s.status, label: s.label, count: list.length });
     if (s.status === 'done' && !showDone) continue;
-    for (const t of list) items.push({ kind: 'row', task: t });
+    list.forEach((t, i) => {
+      const pos: RowPos = list.length === 1 ? 'only' : i === 0 ? 'first' : i === list.length - 1 ? 'last' : 'mid';
+      items.push({ kind: 'row', task: t, pos });
+    });
   }
 
   const add = () => {
@@ -52,13 +60,21 @@ export function TodoView() {
 
   const onScroll = (e: UIEvent<HTMLDivElement>) => {
     const top = composerRef.current?.offsetTop ?? 0;
-    const s = e.currentTarget.scrollTop > top - 1;
+    const s = e.currentTarget.scrollTop > top - 2;
     if (s !== stuck) setStuck(s);
   };
 
   const open = groups.todo.length + groups.in_progress.length;
 
   return (
+    <>
+      <header className="bar todo-bar">
+        <button className="icon-btn bar-btn" aria-label="Menu" onClick={() => setMenuOpen(true)}>
+          <MenuIcon />
+        </button>
+        <span className="bar-date">{format(new Date(), 'EEEE, d MMMM')}</span>
+        <span className="bar-btn-space" />
+      </header>
     <div className="todo-scroll scroll-y" onScroll={onScroll}>
       <div className="todo-wrap">
         <figure className="quote">
@@ -74,20 +90,22 @@ export function TodoView() {
             add();
           }}
         >
-          <span className="composer-icon" aria-hidden>
-            <Plus size={16} strokeWidth={2} />
-          </span>
-          <input
-            ref={inputRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Write something down…"
-            aria-label="New to-do"
-            enterKeyHint="done"
-          />
-          <button type="submit" className={`composer-add ${text.trim() ? 'show' : ''}`} tabIndex={text.trim() ? 0 : -1}>
-            Add
-          </button>
+          <label className="composer-field">
+            <span className="composer-icon" aria-hidden>
+              <PlusIcon size={18} />
+            </span>
+            <input
+              ref={inputRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Add a to-do"
+              aria-label="New to-do"
+              enterKeyHint="done"
+            />
+            <button type="submit" className={`composer-add ${text.trim() ? 'show' : ''}`} tabIndex={text.trim() ? 0 : -1}>
+              Add
+            </button>
+          </label>
         </form>
 
         <div className="todo-list" ref={listRef}>
@@ -113,7 +131,7 @@ export function TodoView() {
                 )}
               </div>
             ) : (
-              <TodoRow key={it.task.id} task={it.task} vanishOnDone={!showDone} />
+              <TodoRow key={it.task.id} task={it.task} pos={it.pos} vanishOnDone={!showDone} />
             ),
           )}
         </div>
@@ -149,5 +167,6 @@ export function TodoView() {
         />
       )}
     </div>
+    </>
   );
 }

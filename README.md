@@ -4,19 +4,23 @@ A calm to-do list and a calendar in one place. It's built to run as a
 **Telegram Mini App in fullscreen**, and it also works as a normal web app (or
 an installable PWA) on your phone and desktop.
 
-There are two places, switched with the **To-do | Calendar** control at the
-top. You can tap either side or drag the switch across. Settings sit behind the
-icon on the right.
+There are two places, **To-do** and **Calendar**, switched with the tab bar at
+the bottom (in thumb reach). Tap a tab or drag the highlight across. The **☰**
+menu at the top left of either screen holds the calendar views, which
+calendars are shown, and Settings.
 
 ## To-do
 
 One running list that isn't tied to any day. Write things down as they come to
 you, then look over the list whenever you open the app.
 
-- **Write something down…** at the top adds a to-do. The field stays pinned
-  while you scroll.
-- Each to-do is **Not started**, **In progress** or **Done**, and the list is
-  grouped that way. Done is folded away until you open it.
+The page opens with today's date at the top and a centred quote, *"If you fail
+to plan, you are planning to fail."* (usually attributed to Benjamin
+Franklin). Below it:
+
+- **Add a to-do** adds a to-do. The field stays pinned while you scroll.
+- Each to-do is **Not started**, **In progress** or **Done**. Each group is its
+  own card. Done is folded away until you open it.
 - **Tap the circle** to tick a to-do off. It fills in, the title is struck
   through, and after a moment it moves to Done. Every change has **Undo**.
 - **Swipe right** to start (or pause) a to-do. **Swipe left** for *Calendar*
@@ -38,13 +42,14 @@ row shows when it's planned (red if that time has passed); tap that label to
 jump to the day. You can also go the other way: tap an empty slot on the
 calendar and choose **Or put a to-do here**.
 
-The page opens with *"If you fail to plan, you are planning to fail."* This
-line is usually attributed to Benjamin Franklin.
-
 ## Calendar
 
-- **Day, 3 Days, Week, Month and List** views (the menu on the right also
-  shows and hides calendars). Tap the month title to jump to any date.
+- One row at the top, like Proton Calendar: **☰** menu, the month (tap it to
+  jump to any date), the **today** button (it shows today's date) and **+**
+  for a new event.
+- **Day, 3 days, Week, Month and List** views, picked from the ☰ menu. The
+  menu also shows and hides calendars and opens Settings. Swipe it back to
+  close it.
 - **Swipe to change week, day or month.** The next page follows your finger
   and settles with a spring, based on how far and how fast you swiped. You can
   catch it while it's still moving. On desktop, use the arrows or ← / →.
@@ -67,8 +72,8 @@ the Human Interface Guidelines on motion. The building blocks are in
 - **Springs, not timed curves.** Each spring is set by a damping ratio and a
   response time. CSS transitions use the same springs, converted to
   `linear()` easing curves.
-- **Direct manipulation.** Calendar pages, list rows, sheets and the segmented
-  switch track your finger 1:1.
+- **Direct manipulation.** Calendar pages, list rows, sheets, the side menu
+  and the tab bar highlight track your finger 1:1.
 - **Momentum.** When you let go, the app projects your finger's speed forward
   to choose where to settle, and the spring starts at that speed so there's
   no visible jump.
@@ -136,8 +141,8 @@ variables in `src/lib/telegram.ts` and `src/styles/tokens.css`:
 --inset-top: max(env(safe-area-inset-top), safeAreaInset.top + contentSafeAreaInset.top);
 ```
 
-The top bar and every sheet are laid out below `--inset-top`. Floating
-controls and sheets pad by the bottom inset (the home indicator), and the left
+Each screen's top row and every sheet are laid out below `--inset-top`. The
+tab bar and sheets pad by the bottom inset (the home indicator), and the left
 and right insets are respected in landscape.
 
 ## Your data
@@ -157,12 +162,14 @@ src/
                 free-slot finder, Telegram bridge
   store/        persisted data store (events, to-dos, calendars, settings) + UI state
   views/        To-do (list + swipe rows), Calendar (TimeGrid, Month, List)
-  components/   sheets (to-do, add to calendar, event, settings), segmented
-                control, popover, toasts
+  components/   sheets (to-do, add to calendar, event, settings), side menu,
+                icons, segmented control (also drives the tab bar), popover,
+                toasts
   styles/       tokens (light/dark), base controls, layout, to-do, calendar, forms
 ```
 
-Stack: React 19, TypeScript, Vite, Zustand, date-fns and lucide icons. Text
-uses the system font (SF Pro on Apple devices) with Inter as the fallback.
-Headings and the quote use Instrument Serif. Fonts are bundled so the app
-works offline.
+Stack: React 19, TypeScript, Vite, Zustand, date-fns, lucide plus a few
+custom icons (tabs, menu, today, views). Text uses the system font (SF Pro on
+Apple devices) with Inter as the fallback. The quote, the month title and the
+menu title use Fraunces, upright with soft terminals. Fonts are bundled so
+the app works offline.

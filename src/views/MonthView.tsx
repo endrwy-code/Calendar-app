@@ -127,7 +127,7 @@ export function MonthView({ controlRef }: { controlRef: MutableRefObject<PagerCo
         {showWeekNumbers && <span className="wk-col" />}
         {dows.map((d) => (
           <span key={d.getDay()} className={d.getDay() % 6 === 0 ? 'we' : ''}>
-            {format(d, 'EEEEE')}
+            {format(d, 'EEE')}
           </span>
         ))}
       </div>

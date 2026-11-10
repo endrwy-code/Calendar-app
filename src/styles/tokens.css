@@ -3,11 +3,12 @@
    Quiet and monochrome: warm paper white / soft ink black, hairline
    rules, one red accent for "now" and "today", ochre for "in progress".
    Type: the system UI face (SF Pro on Apple devices, Inter elsewhere)
-   with Instrument Serif for display moments.
+   for everything you read and tap, and Fraunces (upright, soft) for the
+   few display moments: the quote, the month, the menu title.
 ------------------------------------------------------------------- */
 :root {
   --font: -apple-system, BlinkMacSystemFont, 'Inter Variable', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --serif: 'Instrument Serif', 'New York', ui-serif, Georgia, 'Times New Roman', serif;
+  --serif: 'Fraunces Variable', 'Iowan Old Style', 'New York', ui-serif, Georgia, serif;
 
   /* Safe areas: device insets (notch / status bar / home indicator) plus
      Telegram's own floating controls in fullscreen. Values come from
@@ -17,7 +18,9 @@
   --inset-left: max(env(safe-area-inset-left, 0px), calc(var(--tg-sa-left, 0px) + var(--tg-csa-left, 0px)));
   --inset-right: max(env(safe-area-inset-right, 0px), calc(var(--tg-sa-right, 0px) + var(--tg-csa-right, 0px)));
 
-  --gutter-w: 46px;
+  --gutter-w: 50px;
+  --bar-h: 52px;
+  --tabbar-h: 64px;
   --radius-sm: 8px;
   --radius: 12px;
   --radius-lg: 16px;
@@ -42,6 +45,8 @@
 :root[data-theme='light'] {
   color-scheme: light;
   --bg: #fbfaf7;
+  /* The to-do page is a grouped list: cards (--surface) on a slightly deeper ground */
+  --group: #f2f1ec;
   --surface: #ffffff;
   --sheet: #f3f2ee;
   --raised: #ffffff;
@@ -64,7 +69,7 @@
   --shadow-lg: 0 24px 70px -18px rgba(0, 0, 0, 0.3), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
   /* Event blocks: how much colour goes into the fill, and into the text */
   --ev-tint: 15%;
-  --ev-ink: 68%;
+  --ev-ink: 58%;
 
   --coral: #d4604f;
   --amber: #c48a22;
@@ -80,7 +85,8 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
   --bg: #0d0d0e;
-  --surface: #1f1f21;
+  --group: #0d0d0e;
+  --surface: #1c1c1e;
   --sheet: #161618;
   --raised: #262628;
   --ink: #f2f2f4;
@@ -100,8 +106,8 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.7);
   --shadow-lg: 0 24px 70px -18px rgba(0, 0, 0, 0.8), 0 0 0 0.5px rgba(255, 255, 255, 0.06);
-  --ev-tint: 24%;
-  --ev-ink: 42%;
+  --ev-tint: 26%;
+  --ev-ink: 22%;
 
   --coral: #f07a69;
   --amber: #e0a947;
