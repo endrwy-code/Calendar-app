@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { addMinutes } from 'date-fns';
-import { Sparkles } from 'lucide-react';
 import { useData } from '../store/data';
 import { useUI } from '../store/ui';
 import { fmtTime, parseLocal, relativeDayLabel, todayKey } from '../lib/dates';
@@ -8,14 +7,13 @@ import { suggestSlots } from '../lib/selectors';
 import { scheduleTask, unscheduleTask } from '../lib/actions';
 import { Sheet } from './Sheet';
 import { Segmented } from './Segmented';
+import { DateField, TimeField } from './Fields';
 
 const DURATIONS = [
-  { value: '15', label: '15m' },
-  { value: '30', label: '30m' },
-  { value: '45', label: '45m' },
-  { value: '60', label: '1h' },
-  { value: '90', label: '1½h' },
-  { value: '120', label: '2h' },
+  { value: '15', label: '15 min' },
+  { value: '30', label: '30 min' },
+  { value: '60', label: '1 hour' },
+  { value: '120', label: '2 hours' },
 ];
 
 /**
@@ -77,23 +75,21 @@ function ScheduleInner({ id }: { id: string }) {
 
           {suggestions.length > 0 && (
             <>
-              <div className="group-label">
-                <Sparkles size={12} /> Free on your calendar
-              </div>
-              <div className="group">
+              <div className="group-label">Free on your calendar</div>
+              <div className="group rows">
                 {suggestions.map((s) => {
                   const d = parseLocal(s);
                   return (
                     <button
                       key={s}
-                      className="cell action"
+                      className="row"
                       onClick={() => {
                         scheduleTask(task, s, +dur);
                         c();
                       }}
                     >
-                      <span className="cell-main">{relativeDayLabel(d)}</span>
-                      <span className="cell-value">
+                      <span className="row-main">{relativeDayLabel(d)}</span>
+                      <span className="row-value">
                         {fmtTime(d, tf)} – {fmtTime(addMinutes(d, +dur), tf)}
                       </span>
                     </button>
@@ -103,11 +99,12 @@ function ScheduleInner({ id }: { id: string }) {
             </>
           )}
 
-          <div className="group-label">Or choose a time</div>
-          <div className="group">
-            <div className="cell pick">
-              <input className="pill-input" type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} aria-label="Date" />
-              <input className="pill-input" type="time" value={time} onChange={(e) => e.target.value && setTime(e.target.value)} aria-label="Time" />
+          <div className="group-label">Or pick a time</div>
+          <div className="group rows">
+            <div className="row">
+              <DateField label="Date" value={date} onChange={setDate} />
+              <TimeField label="Time" timeFormat={tf} value={time} onChange={setTime} />
+              <span className="spacer" />
               <button
                 className="btn btn-primary btn-sm"
                 onClick={() => {
@@ -121,19 +118,16 @@ function ScheduleInner({ id }: { id: string }) {
           </div>
 
           {task.scheduledStart && (
-            <div className="group">
-              <button
-                className="cell danger center"
-                onClick={() => {
-                  unscheduleTask(task);
-                  c();
-                }}
-              >
-                Remove from calendar
-              </button>
-            </div>
+            <button
+              className="quiet-danger"
+              onClick={() => {
+                unscheduleTask(task);
+                c();
+              }}
+            >
+              Remove from calendar
+            </button>
           )}
-          <p className="form-foot">Suggestions only use your planning hours ({String(settings.dayStartHour).padStart(2, '0')}:00–{String(settings.dayEndHour).padStart(2, '0')}:00). Change them in Settings.</p>
         </div>
       )}
     </Sheet>

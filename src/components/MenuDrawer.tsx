@@ -198,7 +198,18 @@ function Drawer({ onClose }: { onClose: () => void }) {
           })}
 
           <div className="drawer-sep" />
-          <div className="drawer-label">Calendars</div>
+          <div className="drawer-label">
+            Tags
+            <button
+              className="drawer-link"
+              onClick={() => {
+                close();
+                setSettingsOpen(true);
+              }}
+            >
+              Edit
+            </button>
+          </div>
           {calendars.map((c) => (
             <button
               key={c.id}
@@ -212,9 +223,10 @@ function Drawer({ onClose }: { onClose: () => void }) {
             >
               <span className="drawer-cal-dot" />
               <span>{c.name}</span>
-              <span className="drawer-check">{c.visible && <Check size={14} strokeWidth={3} />}</span>
+              <span className="drawer-check">{c.visible && <Check size={18} strokeWidth={2.2} />}</span>
             </button>
           ))}
+
         </div>
 
         <div className="drawer-foot">

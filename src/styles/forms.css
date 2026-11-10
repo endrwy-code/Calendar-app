@@ -105,8 +105,10 @@ button.cell:active {
   background-color: var(--surface);
 }
 .cell-input.title {
-  font-size: 18px;
-  font-weight: 500;
+  min-height: 56px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
 }
 .cell-input::placeholder,
 .cell-textarea::placeholder {
@@ -266,72 +268,6 @@ button.cell:active {
   background: var(--ink);
   color: var(--on-ink);
 }
-.cal-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.cal-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 34px;
-  padding: 0 14px 0 12px;
-  border-radius: 999px;
-  background: var(--surface);
-  font-size: 14.5px;
-  color: var(--ink);
-  box-shadow: inset 0 0 0 1px var(--line);
-  transition:
-    background-color 0.2s,
-    color 0.2s,
-    box-shadow 0.2s,
-    transform 0.45s var(--spring);
-}
-.cal-chip:active {
-  transform: scale(0.95);
-  transition-duration: 0.08s;
-}
-.cal-chip[aria-pressed='true'] {
-  background: var(--ink);
-  color: var(--on-ink);
-  box-shadow: none;
-}
-
-/* Settings: calendars */
-.cal-dot {
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background: var(--c);
-  flex: none;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
-  transition: transform 0.4s var(--spring-bounce);
-}
-.cal-dot:active {
-  transform: scale(0.85);
-}
-.cal-name {
-  border: 0;
-  outline: none;
-  background: transparent;
-  font-size: 16px;
-  padding: 6px 0;
-}
-.cal-name::placeholder {
-  color: var(--ink-3);
-}
-.cal-row {
-  display: grid;
-  background-color: var(--surface);
-}
-.cell.palette {
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-top: 4px;
-  padding-bottom: 12px;
-  animation: fade-in 0.25s ease-out;
-}
 .swatch {
   width: 28px;
   height: 28px;
@@ -347,4 +283,349 @@ button.cell:active {
   box-shadow:
     0 0 0 2px var(--surface),
     0 0 0 3.5px var(--c);
+}
+
+/* ---------- Calm rows (Proton-style): an icon, the thing, its value ----------
+   Used by the event, to-do, add-to-calendar and settings sheets. */
+.group.rows > * + * {
+  background-size: calc(100% - 50px) 1px;
+}
+.group.rows > .tag-pick,
+.group.rows > .row.sub,
+.group.rows > .tag-row + .tag-row,
+.group.rows > .tag-row + .row {
+  background-size: calc(100% - 50px) 1px;
+}
+.group.rows > .row.sub {
+  background-image: none;
+}
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 14px 8px 16px;
+  text-align: left;
+  font-size: 16.5px;
+  color: var(--ink);
+  background-color: var(--surface);
+}
+button.row {
+  transition: background-color 0.15s;
+}
+button.row:active {
+  background-color: var(--fill-2);
+  transition-duration: 0.05s;
+}
+.row.top {
+  align-items: flex-start;
+}
+.row.top .row-icon {
+  margin-top: 2px;
+}
+.row.sub {
+  min-height: 44px;
+  padding-top: 0;
+  padding-bottom: 6px;
+  padding-left: 50px;
+  gap: 6px;
+}
+.row.danger {
+  color: var(--red);
+}
+.row.bold {
+  font-weight: 600;
+}
+.row-icon {
+  flex: none;
+  width: 20px;
+  color: var(--ink-2);
+}
+.row-main {
+  flex: 1;
+  min-width: 0;
+}
+.row-main.two {
+  display: grid;
+  gap: 1px;
+}
+.row-main.two small {
+  font-size: 13.5px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.row-main.notes {
+  white-space: pre-wrap;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.row-value {
+  flex: none;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.row-chev {
+  flex: none;
+  color: var(--ink-3);
+  margin-right: -4px;
+  transition: transform 0.45s var(--spring);
+}
+.row-chev.down {
+  transform: rotate(90deg);
+}
+.row-dash {
+  color: var(--ink-3);
+}
+.row .seg {
+  width: 128px;
+}
+.row-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  padding: 4px 0;
+  background: transparent;
+  font-size: 16.5px;
+  color: var(--ink);
+}
+.row-input::placeholder {
+  color: var(--ink-3);
+}
+.row-input.area {
+  resize: none;
+  line-height: 1.45;
+  padding: 1px 0;
+  min-height: 24px;
+  overflow: hidden;
+}
+.row-input.area.paste {
+  min-height: 72px;
+  overflow: auto;
+}
+.row .text-btn.small {
+  font-size: 14px;
+}
+
+/* Date / time that read as text; the native picker sits on top, invisible */
+.dt {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 10px;
+  margin-left: -10px;
+  border-radius: 9px;
+  font-size: 16.5px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.dt.time {
+  margin-left: auto;
+  margin-right: -6px;
+}
+.row .dt + .spacer + .btn {
+  margin-left: 0;
+}
+.dt:active,
+.dt:focus-within {
+  background: var(--fill-2);
+}
+.dt input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.dt input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+/* Tags */
+.tag-dot,
+.tag-dot-lg {
+  display: inline-block;
+  flex: none;
+  border-radius: 999px;
+  background: var(--c);
+}
+.tag-dot {
+  width: 10px;
+  height: 10px;
+}
+.row-icon.tag-dot-lg {
+  width: 14px;
+  height: 14px;
+  margin: 0 3px;
+}
+.btn-dot {
+  transition: transform 0.4s var(--spring-bounce);
+}
+.btn-dot::before {
+  content: '';
+  position: absolute;
+  inset: -12px;
+}
+.btn-dot {
+  position: relative;
+}
+.btn-dot:active {
+  transform: scale(0.8);
+}
+.tag-pick {
+  display: grid;
+  padding: 2px 0 6px 50px;
+  background-color: var(--surface);
+  animation: fade-in 0.25s ease-out;
+}
+.tag-opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 14px 0 2px;
+  font-size: 16px;
+  text-align: left;
+  color: var(--ink);
+  border-radius: 10px;
+  transition: background-color 0.15s;
+}
+button.tag-opt:active {
+  background: var(--fill);
+}
+.tag-name {
+  flex: 1;
+  min-width: 0;
+}
+.tag-check {
+  flex: none;
+  color: var(--ink);
+}
+.tag-new input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 16px;
+  padding: 8px 0;
+}
+.tag-new input::placeholder {
+  color: var(--ink-3);
+}
+.tag-new .tag-dot {
+  opacity: 0.55;
+}
+.tag-add {
+  font-weight: 600;
+  font-size: 15px;
+  padding: 6px 2px;
+}
+.tag-row {
+  display: grid;
+  background-color: var(--surface);
+}
+.row.sub.palette {
+  flex-wrap: wrap;
+  gap: 7px;
+  padding-top: 2px;
+  padding-bottom: 10px;
+  animation: fade-in 0.25s ease-out;
+}
+.row.sub.palette .swatch {
+  width: 26px;
+  height: 26px;
+}
+.tag-delete {
+  flex-basis: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 6px 0;
+  font-size: 14.5px;
+  color: var(--red);
+}
+
+/* Quiet destructive action at the foot of a sheet */
+.quiet-danger {
+  justify-self: center;
+  margin-top: 6px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 15.5px;
+  color: var(--red);
+  transition: background-color 0.15s;
+}
+.quiet-danger:active {
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+}
+
+/* ---------- Event, read first ---------- */
+.form.detail {
+  gap: 14px;
+  padding-top: 4px;
+}
+.ev-summary {
+  display: grid;
+  gap: 10px;
+  padding: 4px 6px 4px 18px;
+  box-shadow: inset 4px 0 var(--c);
+  border-radius: 2px;
+}
+.ev-summary-title {
+  font-family: var(--serif);
+  font-size: 27px;
+  font-weight: 540;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.ev-summary-when {
+  display: grid;
+  gap: 3px;
+  font-size: 17px;
+  color: var(--ink);
+}
+.ev-summary-when .sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.ev-summary-tag {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.form.edit {
+  gap: 12px;
 }

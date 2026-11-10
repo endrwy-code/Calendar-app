@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { addDays, addMinutes, differenceInMinutes } from 'date-fns';
-import type { CalEvent, Recurrence } from '../types';
+import { addDays, addMinutes, differenceInMinutes, format, isSameDay } from 'date-fns';
+import { AlignLeft, ChevronRight, Clock, MapPin, Repeat as RepeatIcon } from 'lucide-react';
+import type { CalEvent, CalendarCategory, Recurrence } from '../types';
 import { useData, shiftedTimes } from '../store/data';
 import { useUI, type EventEditorState } from '../store/ui';
-import { fmtDuration, parseLocal, toDateKey, toLocalISO, todayKey } from '../lib/dates';
+import { fmtDuration, fmtTime, parseLocal, toDateKey, toLocalISO, todayKey } from '../lib/dates';
 import { eventBounds } from '../lib/recurrence';
 import { scheduleTask } from '../lib/actions';
 import { haptic } from '../lib/telegram';
 import { ActionSheet, Sheet, type Choice } from './Sheet';
 import { StatusGlyph } from './StatusCircle';
+import { AutoGrow, DateField, TimeField } from './Fields';
+import { TagPicker } from './TagPicker';
 
 type Repeat = 'none' | 'daily' | 'weekdays' | 'weekly' | 'monthly' | 'yearly';
 
@@ -37,6 +40,26 @@ const WEEKDAYS = [
   { d: 6, l: 'S' },
   { d: 0, l: 'S' },
 ];
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** "Every week on Mon, Wed until 3 Dec" */
+function describeRepeat(f: Form): string {
+  if (f.repeat === 'none') return '';
+  const n = Math.max(1, f.interval || 1);
+  const unit = { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' } as const;
+  let text =
+    f.repeat === 'weekdays'
+      ? 'Every weekday'
+      : n === 1
+        ? `Every ${unit[f.repeat]}`
+        : `Every ${n} ${unit[f.repeat]}s`;
+  if (f.repeat === 'weekly' && f.byWeekday.length) {
+    const order = [1, 2, 3, 4, 5, 6, 0];
+    text += ` on ${order.filter((d) => f.byWeekday.includes(d)).map((d) => DAY_SHORT[d]).join(', ')}`;
+  }
+  if (f.until) text += ` until ${format(parseLocal(f.until), 'd MMM')}`;
+  return text;
+}
 
 const timeOf = (d: Date) => toLocalISO(d).slice(11);
 
@@ -117,6 +140,11 @@ function EventInner({ editor }: { editor: NonNullable<EventEditorState> }) {
 
   const [f, setF] = useState<Form>(() => formFrom(editor, existing, cursor, settings.defaultEventMinutes, calendars[0]?.id ?? 'personal'));
   const [choice, setChoice] = useState<{ title: string; message?: string; choices: Choice[] } | null>(null);
+  // Tapping an event shows it first; editing is one tap away. New events open straight into the form.
+  const [mode, setMode] = useState<'view' | 'edit'>(existing ? 'view' : 'edit');
+  const [tagOpen, setTagOpen] = useState(false);
+  const tag: CalendarCategory | undefined = calendars.find((c) => c.id === f.calendarId) ?? calendars[0];
+  const tf = settings.timeFormat;
   const set = (patch: Partial<Form>) => setF((x) => ({ ...x, ...patch }));
 
   const build = (): Omit<CalEvent, 'id' | 'createdAt' | 'updatedAt'> => {
@@ -251,24 +279,72 @@ function EventInner({ editor }: { editor: NonNullable<EventEditorState> }) {
     : 0;
   const candidates = fromSlot ? tasks.filter((t) => t.status !== 'done' && !t.scheduledStart).sort((a, b) => b.createdAt - a.createdAt) : [];
 
+  if (mode === 'view' && existing) {
+    return (
+      <Sheet
+        onClose={closeEvent}
+        label="Event"
+        left={(close) => (
+          <button className="text-btn" onClick={close}>
+            Close
+          </button>
+        )}
+        right={() => (
+          <button className="text-btn bold" onClick={() => setMode('edit')}>
+            Edit
+          </button>
+        )}
+      >
+        {(close) => (
+          <div className="form detail">
+            <EventSummary f={f} tag={tag} timeFormat={tf} />
+            {(f.location || f.notes) && (
+              <div className="group rows">
+                {f.location && (
+                  <div className="row">
+                    <MapPin size={20} strokeWidth={1.7} className="row-icon" />
+                    <span className="row-main">{f.location}</span>
+                  </div>
+                )}
+                {f.notes && (
+                  <div className="row top">
+                    <AlignLeft size={20} strokeWidth={1.7} className="row-icon" />
+                    <span className="row-main notes">{f.notes}</span>
+                  </div>
+                )}
+              </div>
+            )}
+            <button className="quiet-danger" onClick={() => remove(close)}>
+              Delete event
+            </button>
+            {choice && <ActionSheet title={choice.title} message={choice.message} choices={choice.choices} onCancel={() => setChoice(null)} />}
+          </div>
+        )}
+      </Sheet>
+    );
+  }
+
   return (
     <Sheet
       onClose={closeEvent}
-      size="large"
-      title={isNew ? 'New event' : 'Event'}
+      size={existing ? 'auto' : 'large'}
+      title={isNew ? 'New event' : 'Edit event'}
       left={(close) => (
-        <button className="text-btn" onClick={close}>
+        <button className="text-btn" onClick={existing ? () => {
+          setF(formFrom(editor, existing, cursor, settings.defaultEventMinutes, calendars[0]?.id ?? 'personal'));
+          setMode('view');
+        } : close}>
           Cancel
         </button>
       )}
       right={(close) => (
         <button className="text-btn bold" onClick={() => save(close)}>
-          {isNew ? 'Add' : 'Done'}
+          {isNew ? 'Add' : 'Save'}
         </button>
       )}
     >
       {(close) => (
-        <div className="form">
+        <div className="form edit">
           <div className="group">
             <input
               className="cell-input title"
@@ -279,37 +355,30 @@ function EventInner({ editor }: { editor: NonNullable<EventEditorState> }) {
               onKeyDown={(e) => e.key === 'Enter' && save(close)}
               aria-label="Title"
             />
-            <input className="cell-input" placeholder="Location" value={f.location} onChange={(e) => set({ location: e.target.value })} aria-label="Location" />
           </div>
 
-          <div className="group">
-            <div className="cell">
-              <span className="cell-main">All-day</span>
-              <button className="switch" role="switch" aria-checked={f.allDay} aria-label="All-day" onClick={() => set({ allDay: !f.allDay })} />
+          {/* When */}
+          <div className="group rows">
+            <div className="row">
+              <Clock size={20} strokeWidth={1.7} className="row-icon" />
+              <span className="row-main">All day</span>
+              <button className="switch" role="switch" aria-checked={f.allDay} aria-label="All day" onClick={() => set({ allDay: !f.allDay })} />
             </div>
-            <div className="cell">
-              <span className="cell-main">Starts</span>
-              <input
-                className="pill-input"
-                type="date"
+            <div className="row sub">
+              <DateField
+                label="Start date"
                 value={f.startDate}
-                aria-label="Start date"
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (!v) return;
+                onChange={(v) => {
                   const shift = Math.round((parseLocal(v).getTime() - parseLocal(f.startDate).getTime()) / 86400000);
                   set({ startDate: v, endDate: toDateKey(addDays(parseLocal(f.endDate), shift)) });
                 }}
               />
               {!f.allDay && (
-                <input
-                  className="pill-input"
-                  type="time"
+                <TimeField
+                  label="Start time"
+                  timeFormat={tf}
                   value={f.startTime}
-                  aria-label="Start time"
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (!v) return;
+                  onChange={(v) => {
                     const dur = Math.max(15, differenceInMinutes(parseLocal(`${f.endDate}T${f.endTime}`), parseLocal(`${f.startDate}T${f.startTime}`)));
                     const end = addMinutes(parseLocal(`${f.startDate}T${v}`), dur);
                     set({ startTime: v, endDate: toDateKey(end), endTime: timeOf(end) });
@@ -317,18 +386,13 @@ function EventInner({ editor }: { editor: NonNullable<EventEditorState> }) {
                 />
               )}
             </div>
-            <div className="cell">
-              <span className="cell-main">Ends</span>
-              <input className="pill-input" type="date" value={f.endDate} min={f.startDate} aria-label="End date" onChange={(e) => e.target.value && set({ endDate: e.target.value })} />
-              {!f.allDay && (
-                <input className="pill-input" type="time" value={f.endTime} aria-label="End time" onChange={(e) => e.target.value && set({ endTime: e.target.value })} />
-              )}
+            <div className="row sub">
+              <DateField label="End date" value={f.endDate} min={f.startDate} onChange={(v) => set({ endDate: v })} />
+              {!f.allDay && <TimeField label="End time" timeFormat={tf} value={f.endTime} onChange={(v) => set({ endTime: v })} />}
             </div>
-          </div>
-
-          <div className="group">
-            <label className="cell">
-              <span className="cell-main">Repeat</span>
+            <label className="row">
+              <RepeatIcon size={20} strokeWidth={1.7} className="row-icon" />
+              <span className="row-main">Repeat</span>
               <select className="cell-select" value={f.repeat} onChange={(e) => set({ repeat: e.target.value as Repeat })}>
                 <option value="none">Never</option>
                 <option value="daily">Every day</option>
@@ -339,13 +403,13 @@ function EventInner({ editor }: { editor: NonNullable<EventEditorState> }) {
               </select>
             </label>
             {f.repeat === 'weekly' && (
-              <div className="cell">
+              <div className="row sub">
                 <div className="weekdays" role="group" aria-label="Repeat on">
                   {WEEKDAYS.map(({ d, l }) => (
                     <button
                       key={d}
                       aria-pressed={f.byWeekday.includes(d)}
-                      aria-label={['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]}
+                      aria-label={DAY_SHORT[d]}
                       onClick={() => set({ byWeekday: f.byWeekday.includes(d) ? f.byWeekday.filter((x) => x !== d) : [...f.byWeekday, d] })}
                     >
                       {l}
@@ -355,8 +419,8 @@ function EventInner({ editor }: { editor: NonNullable<EventEditorState> }) {
               </div>
             )}
             {f.repeat !== 'none' && f.repeat !== 'weekdays' && (
-              <label className="cell">
-                <span className="cell-main">Every</span>
+              <label className="row sub">
+                <span className="row-main">Every</span>
                 <input
                   className="pill-input num"
                   type="number"
@@ -365,63 +429,126 @@ function EventInner({ editor }: { editor: NonNullable<EventEditorState> }) {
                   value={f.interval}
                   onChange={(e) => set({ interval: Number(e.target.value) || 1 })}
                 />
-                <span className="cell-value">{{ daily: 'days', weekly: 'weeks', monthly: 'months', yearly: 'years' }[f.repeat as 'daily']}</span>
+                <span className="cell-value">
+                  {{ daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' }[f.repeat as 'daily']}
+                  {f.interval === 1 ? '' : 's'}
+                </span>
               </label>
             )}
             {f.repeat !== 'none' && (
-              <label className="cell">
-                <span className="cell-main">End repeat</span>
-                <input className="pill-input" type="date" value={f.until} min={f.startDate} onChange={(e) => set({ until: e.target.value })} aria-label="End repeat" />
-              </label>
+              <div className="row sub">
+                <span className="row-main">Until</span>
+                {f.until ? (
+                  <>
+                    <DateField label="End repeat" value={f.until} min={f.startDate} onChange={(v) => set({ until: v })} />
+                    <button className="text-btn small" onClick={() => set({ until: '' })}>
+                      Clear
+                    </button>
+                  </>
+                ) : (
+                  <button className="text-btn row-value" onClick={() => set({ until: toDateKey(addDays(parseLocal(f.startDate), 28)) })}>
+                    Forever
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
-          <div className="group-label">Calendar</div>
-          <div className="cal-chips">
-            {calendars.map((c) => (
-              <button key={c.id} className={`cal-chip c-${c.color}`} aria-pressed={f.calendarId === c.id} onClick={() => set({ calendarId: c.id })}>
-                <span className="dot" />
-                {c.name}
-              </button>
-            ))}
-          </div>
-
-          <div className="group">
-            <textarea className="cell-textarea" placeholder="Notes" value={f.notes} onChange={(e) => set({ notes: e.target.value })} aria-label="Notes" />
-          </div>
-
-          {existing && (
-            <div className="group">
-              <button className="cell danger center" onClick={() => remove(close)}>
-                Delete event
-              </button>
+          {/* Tag, place, notes */}
+          <div className="group rows">
+            <button className={`row c-${tag?.color ?? 'slate'}`} onClick={() => setTagOpen((v) => !v)} aria-expanded={tagOpen}>
+              <span className="row-icon tag-dot-lg" />
+              <span className="row-main">Tag</span>
+              <span className="row-value">{tag?.name ?? 'None'}</span>
+              <ChevronRight size={18} className={`row-chev ${tagOpen ? 'down' : ''}`} />
+            </button>
+            {tagOpen && (
+              <TagPicker
+                value={f.calendarId}
+                onPick={(id) => {
+                  set({ calendarId: id });
+                  setTagOpen(false);
+                }}
+              />
+            )}
+            <div className="row">
+              <MapPin size={20} strokeWidth={1.7} className="row-icon" />
+              <input className="row-input" placeholder="Add a place" value={f.location} onChange={(e) => set({ location: e.target.value })} aria-label="Location" />
             </div>
-          )}
+            <div className="row top">
+              <AlignLeft size={20} strokeWidth={1.7} className="row-icon" />
+              <AutoGrow className="row-input area" placeholder="Add notes" value={f.notes} onChange={(v) => set({ notes: v })} label="Notes" />
+            </div>
+          </div>
 
           {fromSlot && candidates.length > 0 && (
             <>
               <div className="group-label">Or put a to-do here · {fmtDuration(slotMinutes)}</div>
-              <div className="group">
-                {candidates.slice(0, 6).map((t) => (
+              <div className="group rows">
+                {candidates.slice(0, 4).map((t) => (
                   <button
                     key={t.id}
-                    className="cell action"
+                    className="row"
                     onClick={() => {
                       scheduleTask(t, slotStart!, slotMinutes);
                       close();
                     }}
                   >
-                    <StatusGlyph status={t.status} size={20} />
-                    <span className="cell-main">{t.title}</span>
+                    <span className="row-icon">
+                      <StatusGlyph status={t.status} size={20} />
+                    </span>
+                    <span className="row-main">{t.title}</span>
                   </button>
                 ))}
               </div>
             </>
           )}
 
+          {existing && (
+            <button className="quiet-danger" onClick={() => remove(close)}>
+              Delete event
+            </button>
+          )}
+
           {choice && <ActionSheet title={choice.title} message={choice.message} choices={choice.choices} onCancel={() => setChoice(null)} />}
         </div>
       )}
     </Sheet>
+  );
+}
+
+/** Title, when, and tag, laid out to be read at a glance. */
+function EventSummary({ f, tag, timeFormat }: { f: Form; tag?: CalendarCategory; timeFormat: '24h' | '12h' }) {
+  const start = parseLocal(f.allDay ? f.startDate : `${f.startDate}T${f.startTime}`);
+  const end = parseLocal(f.allDay ? f.endDate : `${f.endDate}T${f.endTime}`);
+  const oneDay = isSameDay(start, end);
+  const dateLine = oneDay
+    ? format(start, 'EEEE, d MMMM')
+    : `${format(start, 'EEE d MMM')} – ${format(end, 'EEE d MMM')}`;
+  const timeLine = f.allDay
+    ? 'All day'
+    : oneDay
+      ? `${fmtTime(start, timeFormat)} – ${fmtTime(end, timeFormat)} · ${fmtDuration(differenceInMinutes(end, start))}`
+      : `${fmtTime(start, timeFormat)} – ${fmtTime(end, timeFormat)}`;
+  const repeat = describeRepeat(f);
+  return (
+    <div className={`ev-summary c-${tag?.color ?? 'slate'}`}>
+      <h2 className="ev-summary-title">{f.title || 'Untitled'}</h2>
+      <div className="ev-summary-when">
+        <span>{dateLine}</span>
+        <span className="sub">{timeLine}</span>
+        {repeat && (
+          <span className="sub">
+            <RepeatIcon size={14} strokeWidth={2} /> {repeat}
+          </span>
+        )}
+      </div>
+      {tag && (
+        <span className="ev-summary-tag">
+          <span className="tag-dot" />
+          {tag.name}
+        </span>
+      )}
+    </div>
   );
 }

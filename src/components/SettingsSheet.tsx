@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react';
-import { Check, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronRight, Trash2 } from 'lucide-react';
 import { useData, type BackupFile } from '../store/data';
 import { useUI } from '../store/ui';
 import { COLOR_KEYS, type ColorKey } from '../types';
 import { isTelegram, tg } from '../lib/telegram';
 import { ActionSheet, Sheet } from './Sheet';
 import { Segmented } from './Segmented';
+import { nextTagColor } from './TagPicker';
 
 const hours = Array.from({ length: 25 }, (_, h) => h);
 const hh = (h: number) => `${String(h).padStart(2, '0')}:00`;
@@ -23,8 +24,10 @@ function SettingsInner({ onClose }: { onClose: () => void }) {
   const s = data.settings;
   const set = data.updateSettings;
   const [newCal, setNewCal] = useState('');
-  const [newColor, setNewColor] = useState<ColorKey>('green');
+  const [newColor, setNewColor] = useState<ColorKey | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const [showData, setShowData] = useState(false);
+  const addColor = newColor ?? nextTagColor(data.calendars);
   const [confirm, setConfirm] = useState<null | 'reset' | 'sample' | { deleteCal: string }>(null);
   const [importText, setImportText] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -71,6 +74,58 @@ function SettingsInner({ onClose }: { onClose: () => void }) {
       )}
     >
       <div className="form">
+        {/* Tags come first: they're yours to name, and the thing you'll change most. */}
+        <div className="group-label">Tags</div>
+        <div className="group rows">
+          {data.calendars.map((c) => (
+            <div key={c.id} className={`tag-row ${editing === c.id ? 'open' : ''}`}>
+              <div className="row">
+                <button className={`row-icon tag-dot-lg btn-dot c-${c.color}`} aria-label={`Colour for ${c.name}`} onClick={() => setEditing(editing === c.id ? null : c.id)} />
+                <input className="row-input" value={c.name} onChange={(e) => data.updateCalendar(c.id, { name: e.target.value })} aria-label="Tag name" />
+                <button className="icon-btn sm" aria-label={`Edit ${c.name}`} aria-expanded={editing === c.id} onClick={() => setEditing(editing === c.id ? null : c.id)}>
+                  <ChevronRight size={18} className={`row-chev ${editing === c.id ? 'down' : ''}`} />
+                </button>
+              </div>
+              {editing === c.id && (
+                <div className="row sub palette">
+                  {COLOR_KEYS.map((k) => (
+                    <button key={k} className={`swatch c-${k}`} aria-label={k} aria-pressed={c.color === k} onClick={() => data.updateCalendar(c.id, { color: k })}>
+                      {c.color === k && <Check size={12} strokeWidth={3} />}
+                    </button>
+                  ))}
+                  <button className="tag-delete" disabled={data.calendars.length <= 1} onClick={() => setConfirm({ deleteCal: c.id })}>
+                    <Trash2 size={15} /> Delete tag
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+          <form
+            className="row"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!newCal.trim()) return;
+              data.addCalendar({ name: newCal.trim(), color: addColor });
+              setNewCal('');
+              setNewColor(null);
+            }}
+          >
+            <button
+              type="button"
+              className={`row-icon tag-dot-lg btn-dot c-${addColor}`}
+              aria-label="Next colour"
+              onClick={() => setNewColor(COLOR_KEYS[(COLOR_KEYS.indexOf(addColor) + 1) % COLOR_KEYS.length])}
+            />
+            <input className="row-input" placeholder="New tag" value={newCal} onChange={(e) => setNewCal(e.target.value)} enterKeyHint="done" />
+            {newCal.trim() && (
+              <button className="text-btn bold" type="submit">
+                Add
+              </button>
+            )}
+          </form>
+        </div>
+        <p className="form-foot">Tap a name to rename it, or a dot for its colour. Show or hide tags from the ☰ menu.</p>
+
         <div className="group-label">Appearance</div>
         <Segmented
           className="full"
@@ -83,12 +138,11 @@ function SettingsInner({ onClose }: { onClose: () => void }) {
             { value: 'dark', label: 'Dark' },
           ]}
         />
-        {isTelegram && <p className="form-foot">Automatic follows your Telegram theme.</p>}
 
         <div className="group-label">Calendar</div>
-        <div className="group">
-          <div className="cell">
-            <span className="cell-main">Week starts on</span>
+        <div className="group rows">
+          <div className="row">
+            <span className="row-main">Week starts on</span>
             <Segmented
               label="Week starts on"
               value={String(s.weekStartsOn) as '0' | '1'}
@@ -99,8 +153,8 @@ function SettingsInner({ onClose }: { onClose: () => void }) {
               ]}
             />
           </div>
-          <div className="cell">
-            <span className="cell-main">Time</span>
+          <div className="row">
+            <span className="row-main">Clock</span>
             <Segmented
               label="Time format"
               value={s.timeFormat}
@@ -111,12 +165,12 @@ function SettingsInner({ onClose }: { onClose: () => void }) {
               ]}
             />
           </div>
-          <div className="cell">
-            <span className="cell-main">Week numbers</span>
+          <div className="row">
+            <span className="row-main">Week numbers</span>
             <button className="switch" role="switch" aria-checked={s.showWeekNumbers} aria-label="Week numbers" onClick={() => set({ showWeekNumbers: !s.showWeekNumbers })} />
           </div>
-          <label className="cell">
-            <span className="cell-main">New events last</span>
+          <label className="row">
+            <span className="row-main">New events last</span>
             <select className="cell-select" value={s.defaultEventMinutes} onChange={(e) => set({ defaultEventMinutes: Number(e.target.value) })}>
               {[15, 30, 45, 60, 90, 120].map((m) => (
                 <option key={m} value={m}>
@@ -125,23 +179,17 @@ function SettingsInner({ onClose }: { onClose: () => void }) {
               ))}
             </select>
           </label>
-        </div>
-
-        <div className="group-label">Planning hours</div>
-        <div className="group">
-          <div className="cell">
-            <span className="cell-main">From</span>
-            <select className="cell-select" value={s.dayStartHour} onChange={(e) => set({ dayStartHour: Number(e.target.value) })} aria-label="From">
+          <div className="row">
+            <span className="row-main">Suggest times</span>
+            <select className="cell-select" value={s.dayStartHour} onChange={(e) => set({ dayStartHour: Number(e.target.value) })} aria-label="Suggest times from">
               {hours.slice(0, 24).map((h) => (
                 <option key={h} value={h}>
                   {hh(h)}
                 </option>
               ))}
             </select>
-          </div>
-          <div className="cell">
-            <span className="cell-main">Until</span>
-            <select className="cell-select" value={s.dayEndHour} onChange={(e) => set({ dayEndHour: Number(e.target.value) })} aria-label="Until">
+            <span className="row-dash">–</span>
+            <select className="cell-select" value={s.dayEndHour} onChange={(e) => set({ dayEndHour: Number(e.target.value) })} aria-label="Suggest times until">
               {hours
                 .slice(1)
                 .filter((h) => h > s.dayStartHour)
@@ -153,73 +201,50 @@ function SettingsInner({ onClose }: { onClose: () => void }) {
             </select>
           </div>
         </div>
-        <p className="form-foot">“Add to calendar” suggests free times inside these hours.</p>
+        <p className="form-foot">“Add to calendar” suggests free times between these hours.</p>
 
-        <div className="group-label">Calendars</div>
-        <div className="group">
-          {data.calendars.map((c) => (
-            <div key={c.id} className={`cal-row ${editing === c.id ? 'open' : ''}`}>
-              <div className="cell">
-                <button className={`cal-dot c-${c.color}`} aria-label={`Colour for ${c.name}`} onClick={() => setEditing(editing === c.id ? null : c.id)} />
-                <input className="cell-main cal-name" value={c.name} onChange={(e) => data.updateCalendar(c.id, { name: e.target.value })} aria-label="Calendar name" />
-                <button className="switch" role="switch" aria-checked={c.visible} aria-label={`Show ${c.name}`} onClick={() => data.toggleCalendar(c.id)} />
-              </div>
-              {editing === c.id && (
-                <div className="cell palette">
-                  {COLOR_KEYS.map((k) => (
-                    <button key={k} className={`swatch c-${k}`} aria-label={k} aria-pressed={c.color === k} onClick={() => data.updateCalendar(c.id, { color: k })}>
-                      {c.color === k && <Check size={12} strokeWidth={3} />}
-                    </button>
-                  ))}
-                  <span className="spacer" />
-                  <button className="icon-btn sm" aria-label={`Delete ${c.name}`} disabled={data.calendars.length <= 1} onClick={() => setConfirm({ deleteCal: c.id })}>
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-          <form
-            className="cell"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!newCal.trim()) return;
-              data.addCalendar({ name: newCal.trim(), color: newColor });
-              setNewCal('');
-            }}
-          >
-            <button
-              type="button"
-              className={`cal-dot c-${newColor}`}
-              aria-label="Next colour"
-              onClick={() => setNewColor(COLOR_KEYS[(COLOR_KEYS.indexOf(newColor) + 1) % COLOR_KEYS.length])}
-            />
-            <input className="cell-main cal-name" placeholder="Add a calendar" value={newCal} onChange={(e) => setNewCal(e.target.value)} />
-            {newCal.trim() && (
-              <button className="icon-btn sm" type="submit" aria-label="Add calendar">
-                <Plus size={18} />
+        <div className="group rows">
+          <button className="row" onClick={() => setShowData((v) => !v)} aria-expanded={showData}>
+            <span className="row-main">Backup and data</span>
+            <ChevronRight size={18} className={`row-chev ${showData ? 'down' : ''}`} />
+          </button>
+          {showData && (
+            <>
+              <button className="row" onClick={download}>
+                <span className="row-main">Download a backup</span>
               </button>
-            )}
-          </form>
-        </div>
-        <p className="form-foot">Tap a dot to change its colour. Hidden calendars stay saved.</p>
-
-        <div className="group-label">Your data</div>
-        <div className="group">
-          <button className="cell action" onClick={download}>
-            <span className="cell-main">Download a backup</span>
-          </button>
-          <button className="cell action" onClick={copy}>
-            <span className="cell-main">Copy backup</span>
-          </button>
-          <button className="cell action" onClick={() => fileRef.current?.click()}>
-            <span className="cell-main">Import a backup file</span>
-          </button>
-          <textarea className="cell-textarea" placeholder="…or paste a backup here" value={importText} onChange={(e) => setImportText(e.target.value)} />
-          {importText.trim() && (
-            <button className="cell action bold" onClick={() => doImport(importText)}>
-              <span className="cell-main">Import pasted backup</span>
-            </button>
+              <button className="row" onClick={copy}>
+                <span className="row-main">Copy backup</span>
+              </button>
+              <button className="row" onClick={() => fileRef.current?.click()}>
+                <span className="row-main">Import a backup file</span>
+              </button>
+              <div className="row top">
+                <textarea
+                  className="row-input area paste"
+                  placeholder="…or paste a backup here"
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                />
+              </div>
+              {importText.trim() && (
+                <button className="row bold" onClick={() => doImport(importText)}>
+                  <span className="row-main">Import pasted backup</span>
+                </button>
+              )}
+              {hasSample ? (
+                <button className="row" onClick={() => setConfirm('sample')}>
+                  <span className="row-main">Remove sample data</span>
+                </button>
+              ) : (
+                <button className="row" onClick={() => data.loadSampleData()}>
+                  <span className="row-main">Load sample data</span>
+                </button>
+              )}
+              <button className="row danger" onClick={() => setConfirm('reset')}>
+                <span className="row-main">Erase everything</span>
+              </button>
+            </>
           )}
         </div>
         <input
@@ -233,27 +258,11 @@ function SettingsInner({ onClose }: { onClose: () => void }) {
             e.target.value = '';
           }}
         />
-        <p className="form-foot">
-          Everything stays on this device{isTelegram ? ' (in Telegram’s device storage)' : ''}. Nothing is sent to a server.
-        </p>
-
-        <div className="group">
-          {hasSample ? (
-            <button className="cell action" onClick={() => setConfirm('sample')}>
-              <span className="cell-main">Remove sample data</span>
-            </button>
-          ) : (
-            <button className="cell action" onClick={() => data.loadSampleData()}>
-              <span className="cell-main">Load sample data</span>
-            </button>
-          )}
-          <button className="cell danger" onClick={() => setConfirm('reset')}>
-            Erase everything
-          </button>
-        </div>
 
         <p className="form-foot center">
-          Daybook 0.2 · {isTelegram ? `Telegram (Bot API ${tg?.version}, ${tg?.platform})` : 'Web app'}
+          Everything stays on this device{isTelegram ? ' (in Telegram’s device storage)' : ''}. Nothing is sent to a server.
+          <br />
+          Daybook 0.3 · {isTelegram ? `Telegram (Bot API ${tg?.version}, ${tg?.platform})` : 'Web app'}
         </p>
       </div>
 
@@ -275,12 +284,13 @@ function SettingsInner({ onClose }: { onClose: () => void }) {
       )}
       {confirm && typeof confirm === 'object' && (
         <ActionSheet
-          title="Delete this calendar?"
-          message="Its events will be deleted too."
-          choices={[{ label: 'Delete calendar', tone: 'danger', onSelect: () => (data.deleteCalendar(confirm.deleteCal), setConfirm(null), setEditing(null)) }]}
+          title="Delete this tag?"
+          message="Events with this tag will be deleted too."
+          choices={[{ label: 'Delete tag', tone: 'danger', onSelect: () => (data.deleteCalendar(confirm.deleteCal), setConfirm(null), setEditing(null)) }]}
           onCancel={() => setConfirm(null)}
         />
       )}
     </Sheet>
   );
 }
+

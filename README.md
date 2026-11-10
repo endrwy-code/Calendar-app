@@ -7,7 +7,7 @@ an installable PWA) on your phone and desktop.
 There are two places, **To-do** and **Calendar**, switched with the tab bar at
 the bottom (in thumb reach). Tap a tab or drag the highlight across. The **☰**
 menu at the top left of either screen holds the calendar views, which
-calendars are shown, and Settings.
+tags are shown, and Settings.
 
 ## To-do
 
@@ -32,7 +32,7 @@ Franklin). Below it:
 ### Adding a to-do to the calendar
 
 *Add to calendar* (from the swipe, or from the to-do itself) asks how long it
-will take, then offers the **next free times on your calendar**: the earliest
+will take (15 min, 30 min, 1 hour or 2 hours), then offers the **next free times on your calendar**: the earliest
 gap today, then one on each of the next days. Suggestions use your planning
 hours (Settings). You can also pick any date and time.
 
@@ -48,7 +48,7 @@ calendar and choose **Or put a to-do here**.
   jump to any date), the **today** button (it shows today's date) and **+**
   for a new event.
 - **Day, 3 days, Week, Month and List** views, picked from the ☰ menu. The
-  menu also shows and hides calendars and opens Settings. Swipe it back to
+  menu also shows and hides tags and opens Settings. Swipe it back to
   close it.
 - **Swipe to change week, day or month.** The next page follows your finger
   and settles with a spring, based on how far and how fast you swiped. You can
@@ -56,12 +56,20 @@ calendar and choose **Or put a to-do here**.
 - The **current time** shows as a red time label in the hour column, a faint
   line across the week, and a solid line on today.
 - All-day events are drawn as bars across the days they cover.
+- **Tap an event to read it**: title, day and time, how it repeats, its tag,
+  place and notes. Tap **Edit** to change it.
+- The edit form is one short list: title; all day, start and end (shown as
+  "Fri 13 Nov · 19:30", and a tap opens your phone's own picker); repeat;
+  tag; place; notes. Repeat options only appear once you choose to repeat.
 - Tap an empty slot to create an event there (a placeholder marks the spot).
   Tap a day heading to open that day.
 - Events can repeat daily, on weekdays, weekly on chosen days, monthly or
   yearly, with an end date. When you edit or delete a repeating event you
   choose "this event only", "this and following" or "all events".
-- Calendars (Personal, Work, Church…) have colours and can be hidden.
+- **Tags** (Personal, Work, Church…) are yours to name. The form shows only
+  the one an event has; tap it to pick another or type a **New tag** on the
+  spot. Rename, recolour or delete tags at the top of Settings, and show or
+  hide them from the ☰ menu.
 
 ## Motion
 
@@ -83,10 +91,11 @@ the Human Interface Guidelines on motion. The building blocks are in
 
 ## Settings
 
-Appearance (Automatic / Light / Dark, where Automatic follows Telegram), week
-start, 12/24h clock, week numbers, default event length, planning hours,
-calendar names, colours and visibility, plus backup export/import and sample
-data.
+Tags come first (rename, recolour, delete, add). Then appearance (Automatic /
+Light / Dark, where Automatic follows Telegram), and the calendar: week start,
+12/24h clock, week numbers, default event length and the hours that "Add to
+calendar" suggests. Backup and sample data are folded away under **Backup and
+data**.
 
 ## Run it locally
 
@@ -149,8 +158,8 @@ and right insets are respected in landscape.
 
 Everything is stored on the device. Inside Telegram (Bot API 9.0+) that's
 Telegram's `DeviceStorage` (5 MB per user per bot), mirrored to
-`localStorage`. In a browser it's `localStorage` only. Use **Settings → Your
-data** to download, copy or import a backup. Nothing is sent to a server.
+`localStorage`. In a browser it's `localStorage` only. Use **Settings → Backup
+and data** to download, copy or import a backup. Nothing is sent to a server.
 Data from earlier versions loads as-is. Old due dates and steps still show
 on the to-do they belong to, so nothing is lost.
 

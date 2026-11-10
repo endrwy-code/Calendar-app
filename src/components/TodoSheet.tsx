@@ -1,14 +1,15 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { format } from 'date-fns';
-import { CalendarClock, CalendarPlus, ChevronRight, X } from 'lucide-react';
+import { AlignLeft, CalendarClock, CalendarPlus, ChevronRight, X } from 'lucide-react';
 import { useData } from '../store/data';
 import { useUI } from '../store/ui';
 import { fmtTime, parseLocal, relativeDayLabel } from '../lib/dates';
 import { taskBounds } from '../lib/schedule';
-import { deleteTask, setStatus, unscheduleTask } from '../lib/actions';
+import { deleteTask, setStatus } from '../lib/actions';
 import { Sheet } from './Sheet';
 import { Segmented } from './Segmented';
 import { StatusGlyph } from './StatusCircle';
+import { AutoGrow } from './Fields';
 import type { TaskStatus } from '../types';
 
 const STATUS_OPTS: { value: TaskStatus; label: string }[] = [
@@ -23,34 +24,12 @@ export function TodoSheet() {
   return <TodoSheetInner key={id} id={id} />;
 }
 
-function AutoGrow(props: { value: string; onChange: (v: string) => void; className?: string; placeholder?: string; label: string }) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = '0px';
-    el.style.height = `${el.scrollHeight}px`;
-  }, [props.value]);
-  return (
-    <textarea
-      ref={ref}
-      rows={1}
-      className={props.className}
-      value={props.value}
-      placeholder={props.placeholder}
-      aria-label={props.label}
-      onChange={(e) => props.onChange(e.target.value)}
-    />
-  );
-}
-
 function TodoSheetInner({ id }: { id: string }) {
   const task = useData((s) => s.tasks.find((t) => t.id === id));
   const updateTask = useData((s) => s.updateTask);
   const tf = useData((s) => s.settings.timeFormat);
   const openTodo = useUI((s) => s.openTodo);
   const openSchedule = useUI((s) => s.openSchedule);
-  const goToDate = useUI((s) => s.goToDate);
   const latest = useRef(task);
   latest.current = task;
 
@@ -74,7 +53,6 @@ function TodoSheetInner({ id }: { id: string }) {
   return (
     <Sheet
       onClose={() => openTodo(null)}
-      title="To-do"
       label="To-do details"
       right={(close) => (
         <button className="text-btn bold" onClick={close}>
@@ -93,7 +71,8 @@ function TodoSheetInner({ id }: { id: string }) {
               value={task.title}
               label="Title"
               placeholder="Title"
-              onChange={(v) => updateTask(task.id, { title: v.replace(/\n/g, ' ') })}
+              singleLine
+              onChange={(v) => updateTask(task.id, { title: v })}
             />
           </div>
 
@@ -105,47 +84,40 @@ function TodoSheetInner({ id }: { id: string }) {
             onChange={(s) => setStatus(task, s, true)}
           />
 
-          <div className="group-label">Calendar</div>
-          <div className="group">
-            {b ? (
-              <>
-                <div className="cell">
-                  <CalendarClock size={18} className="cell-icon" />
-                  <button className="cell-main link" onClick={() => {
-                    close();
-                    goToDate(task.scheduledStart!.slice(0, 10));
-                  }}>
-                    <span>{relativeDayLabel(b.start)}{relativeDayLabel(b.start).includes(' ') ? '' : `, ${format(b.start, 'd MMM')}`}</span>
+          <div className="group rows">
+            <button className="row" onClick={() => openSchedule(task.id)}>
+              {b ? (
+                <>
+                  <CalendarClock size={20} strokeWidth={1.7} className="row-icon" />
+                  <span className="row-main two">
+                    <span>
+                      {relativeDayLabel(b.start)}
+                      {relativeDayLabel(b.start).includes(' ') ? '' : `, ${format(b.start, 'd MMM')}`}
+                    </span>
                     <small>
                       {fmtTime(b.start, tf)} – {fmtTime(b.end, tf)}
                     </small>
-                  </button>
-                  <button className="text-btn" onClick={() => openSchedule(task.id)}>
-                    Change
-                  </button>
-                </div>
-                <button className="cell danger" onClick={() => unscheduleTask(task)}>
-                  Remove from calendar
-                </button>
-              </>
-            ) : (
-              <button className="cell action" onClick={() => openSchedule(task.id)}>
-                <CalendarPlus size={18} className="cell-icon" />
-                <span className="cell-main">Add to calendar</span>
-                <ChevronRight size={17} className="cell-chev" />
-              </button>
-            )}
-          </div>
-
-          <div className="group-label">Notes</div>
-          <div className="group">
-            <AutoGrow
-              className="cell-textarea"
-              value={task.notes ?? ''}
-              label="Notes"
-              placeholder="Anything to remember…"
-              onChange={(v) => updateTask(task.id, { notes: v })}
-            />
+                  </span>
+                  <span className="row-value">Change</span>
+                </>
+              ) : (
+                <>
+                  <CalendarPlus size={20} strokeWidth={1.7} className="row-icon" />
+                  <span className="row-main">Add to calendar</span>
+                </>
+              )}
+              <ChevronRight size={18} className="row-chev" />
+            </button>
+            <div className="row top">
+              <AlignLeft size={20} strokeWidth={1.7} className="row-icon" />
+              <AutoGrow
+                className="row-input area"
+                value={task.notes ?? ''}
+                label="Notes"
+                placeholder="Add notes"
+                onChange={(v) => updateTask(task.id, { notes: v })}
+              />
+            </div>
           </div>
 
           {(task.dueDate || task.subtasks.length > 0) && (
@@ -185,18 +157,15 @@ function TodoSheetInner({ id }: { id: string }) {
             </>
           )}
 
-          <div className="group">
-            <button
-              className="cell danger center"
-              onClick={() => {
-                close();
-                deleteTask(task);
-              }}
-            >
-              Delete to-do
-            </button>
-          </div>
-          <p className="form-foot">Written down {format(new Date(task.createdAt), 'd MMMM yyyy')}</p>
+          <button
+            className="quiet-danger"
+            onClick={() => {
+              close();
+              deleteTask(task);
+            }}
+          >
+            Delete to-do
+          </button>
         </div>
       )}
     </Sheet>
