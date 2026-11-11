@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { formatDistanceToNowStrict } from 'date-fns';
-import { Check, ChevronRight, Download, Link2, Send, Trash2, Upload } from 'lucide-react';
+import { Check, ChevronRight, Download, Forward, Link2, Send, Trash2, Upload } from 'lucide-react';
 import { useData, type BackupFile } from '../store/data';
 import { useUI } from '../store/ui';
 import { COLOR_KEYS, type ColorKey } from '../types';
@@ -316,6 +316,30 @@ function SettingsInner({ onClose }: { onClose: () => void }) {
           </>
         ) : (
           <p className="form-foot">Alerts and a morning summary arrive as Telegram messages once Daybook is running on its server.</p>
+        )}
+
+        {server && sync.ai && (
+          <>
+            <div className="group-label">Plans from messages</div>
+            <div className="group rows">
+              <div className="row">
+                <Forward size={20} strokeWidth={1.7} className="row-icon" />
+                <span className="row-main">Read forwarded messages with Claude</span>
+                <button
+                  className="switch"
+                  role="switch"
+                  aria-checked={s.aiPlans}
+                  aria-label="Read forwarded messages with Claude"
+                  onClick={() => set({ aiPlans: !s.aiPlans })}
+                />
+              </div>
+            </div>
+            <p className="form-foot">
+              Forward a message, or a photo of a poster, to {botName}. Claude (Anthropic’s AI) suggests events and to-dos, and nothing is added until you’ve checked
+              them. What you forward is sent to Anthropic to be read, with phone numbers, emails and NRIC numbers taken out first. Don’t forward pastoral, medical,
+              financial or children’s details.
+            </p>
+          </>
         )}
 
         <div className="group-label">Import and export</div>

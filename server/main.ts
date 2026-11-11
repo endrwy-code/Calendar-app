@@ -13,6 +13,7 @@ import { Bot } from './bot';
 import { BotApi } from './telegram';
 import { Notifier, startMaintenance } from './notify';
 import { createApp } from './http';
+import { PlanReader } from './claude';
 
 // Times are kept as wall-clock strings and worked out per user's zone, which
 // relies on the server's own clock being UTC.
@@ -25,7 +26,9 @@ const store = new Store(path.join(cfg.dataDir, 'daybook.db'));
 let bot: Bot | null = null;
 let notifier: Notifier | null = null;
 if (cfg.botToken) {
-  bot = new Bot(new BotApi(cfg.botToken), store, cfg);
+  const reader = cfg.anthropicKey ? new PlanReader({ apiKey: cfg.anthropicKey, model: cfg.aiModel, baseUrl: process.env.ANTHROPIC_BASE_URL }) : null;
+  if (reader) console.log(`Plans from messages: on (${cfg.aiModel})`);
+  bot = new Bot(new BotApi(cfg.botToken), store, cfg, reader);
   if (cfg.polling) bot.start();
   else void bot.init();
   notifier = new Notifier(store, bot, cfg);

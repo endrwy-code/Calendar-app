@@ -122,6 +122,8 @@ export interface Settings {
   dailyAgenda: string | null;
   /** Send alerts as Telegram messages (needs the Daybook server) */
   telegramAlerts: boolean;
+  /** Let Claude read messages forwarded to the bot and suggest events and to-dos (needs the server) */
+  aiPlans: boolean;
 }
 
 /** Settings that belong to one device and aren't synced. */

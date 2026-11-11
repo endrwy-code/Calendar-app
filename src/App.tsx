@@ -14,6 +14,7 @@ import { ScheduleSheet } from './components/ScheduleSheet';
 import { SettingsSheet } from './components/SettingsSheet';
 import { SearchSheet } from './components/SearchSheet';
 import { DropZone, ImportSheet } from './components/ImportSheet';
+import { PlanReviewSheet } from './components/PlanReviewSheet';
 import { startSync } from './lib/sync';
 import { Toasts } from './components/Toasts';
 import { TgSim } from './components/TgSim';
@@ -65,7 +66,7 @@ export default function App() {
   const theme = useEffectiveTheme();
   const tab = useUI((s) => s.tab);
   const setTab = useUI((s) => s.setTab);
-  const anySheet = useUI((s) => !!(s.eventEditor || s.todoId || s.scheduleId || s.settingsOpen || s.menuOpen || s.searchOpen || s.importing));
+  const anySheet = useUI((s) => !!(s.eventEditor || s.todoId || s.scheduleId || s.settingsOpen || s.menuOpen || s.searchOpen || s.importing || s.review));
 
   // Once local data has loaded, look for the Daybook server and sync with it.
   useEffect(() => {
@@ -125,6 +126,7 @@ export default function App() {
       <SettingsSheet />
       <SearchSheet />
       <ImportSheet />
+      <PlanReviewSheet />
       <DropZone />
       <Toasts />
       {isTgSimulation && <TgSim />}

@@ -12,6 +12,8 @@
  *   GET  /api/feed/<token>.ics  the calendar, for Apple/Google/Outlook to subscribe to
  *   POST /api/notify/test     send a test message
  *   POST /api/send-file       have the bot send you a file (Telegram can't download)
+ *   GET  /api/drafts/<id>     plans read from a forwarded message, to review
+ *   POST /api/drafts/<id>     {status: "added", items} or {status: "cancelled"}
  *
  * Signed-in requests carry `Authorization: Bearer <session token>`.
  */
@@ -21,6 +23,7 @@ import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { buildIcs } from '../src/lib/ics';
+import { normalizePlans } from '../src/lib/plans';
 import { isValidTimeZone } from '../src/lib/tz';
 import { isAllowed, type Config } from './config';
 import { checkInitData, newToken, sha256 } from './auth';
@@ -179,6 +182,7 @@ export function createApp(ctx: Ctx): http.Server {
     chatOk: user.chatOk,
     feedUrl: user.feedToken ? `${baseUrl(req)}/api/feed/${user.feedToken}.ics` : null,
     bot: ctx.bot?.username ?? null,
+    ai: !!ctx.bot?.plans,
   });
 
   async function api(req: IncomingMessage, res: ServerResponse, p: string) {
@@ -286,6 +290,25 @@ export function createApp(ctx: Ctx): http.Server {
       } catch (e) {
         if (e instanceof TelegramError && e.code === 403) store.setChatOk(user.id, false);
         throw new HttpError(502, 'Couldn’t send the file');
+      }
+    }
+
+    const draftPath = /^\/api\/drafts\/([\w-]{10,64})$/.exec(p);
+    if (draftPath) {
+      const draft = store.draft(user.id, draftPath[1]);
+      if (!draft) throw new HttpError(404, 'This draft has expired');
+      if (req.method === 'GET') return json(res, 200, { id: draft.id, items: draft.items, note: draft.note, status: draft.status });
+      if (req.method === 'POST') {
+        const body = await readJson(req, 256 * 1024);
+        if (body.status === 'cancelled') {
+          if (ctx.bot?.plans) await ctx.bot.plans.closedInApp(user, draft.id, 'cancelled');
+          else if (draft.status === 'open') store.updateDraft(user.id, draft.id, { status: 'cancelled' });
+        } else if (body.status === 'added') {
+          const items = normalizePlans(body.items, store.userData(user.id).calendars.map((c) => c.id));
+          if (ctx.bot?.plans) await ctx.bot.plans.closedInApp(user, draft.id, { added: items });
+          else if (draft.status === 'open') store.updateDraft(user.id, draft.id, { status: 'added' });
+        } else throw new HttpError(400, 'Unknown status');
+        return json(res, 200, { ok: true });
       }
     }
 

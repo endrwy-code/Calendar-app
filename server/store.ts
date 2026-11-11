@@ -9,6 +9,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import type { CalEvent, CalendarCategory, Settings, Task } from '../src/types';
 import { DEFAULT_SETTINGS } from '../src/lib/defaults';
+import type { PlanDraft, PlanItem } from '../src/lib/plans';
 
 export type Kind = 'event' | 'task' | 'tag' | 'settings';
 export const KINDS: readonly Kind[] = ['event', 'task', 'tag', 'settings'];
@@ -67,6 +68,17 @@ CREATE TABLE IF NOT EXISTS sent (
   key         TEXT NOT NULL,
   at          INTEGER NOT NULL,
   PRIMARY KEY (user_id, key)
+);
+CREATE TABLE IF NOT EXISTS drafts (
+  id          TEXT PRIMARY KEY,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  items       TEXT NOT NULL,                -- JSON PlanItem[] (the message text itself isn't kept)
+  note        TEXT,
+  status      TEXT NOT NULL DEFAULT 'open', -- open | added | cancelled
+  message_id  INTEGER,                      -- the bot's message showing the draft
+  added       TEXT,                         -- JSON [{kind, id}] added by "Add all", for Undo
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS meta (
   key         TEXT PRIMARY KEY,
@@ -260,6 +272,45 @@ export class Store {
     };
   }
 
+  /* ---------- Drafts of plans read from messages ---------- */
+
+  createDraft(id: string, userId: number, items: PlanItem[], note: string | null): void {
+    const now = Date.now();
+    this.db
+      .prepare('INSERT INTO drafts (id, user_id, items, note, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(id, userId, JSON.stringify(items), note, 'open', now, now);
+  }
+
+  /** A user's draft (null if it isn't theirs). */
+  draft(userId: number, id: string): (PlanDraft & { messageId: number | null; added: { kind: Kind; id: string }[] }) | null {
+    const r = this.db.prepare('SELECT * FROM drafts WHERE id = ? AND user_id = ?').get(id, userId) as Row | undefined;
+    if (!r) return null;
+    return {
+      id: String(r.id),
+      items: JSON.parse(String(r.items)) as PlanItem[],
+      note: (r.note as string | null) ?? null,
+      status: r.status as PlanDraft['status'],
+      messageId: r.message_id === null ? null : Number(r.message_id),
+      added: r.added ? (JSON.parse(String(r.added)) as { kind: Kind; id: string }[]) : [],
+    };
+  }
+
+  draftByMessage(userId: number, messageId: number): string | null {
+    const r = this.db.prepare('SELECT id FROM drafts WHERE user_id = ? AND message_id = ?').get(userId, messageId) as Row | undefined;
+    return r ? String(r.id) : null;
+  }
+
+  updateDraft(userId: number, id: string, patch: { items?: PlanItem[]; note?: string | null; status?: PlanDraft['status']; messageId?: number | null; added?: { kind: Kind; id: string }[] }) {
+    const sets: string[] = ['updated_at = ?'];
+    const vals: (string | number | null)[] = [Date.now()];
+    if (patch.items) sets.push('items = ?') && vals.push(JSON.stringify(patch.items));
+    if (patch.note !== undefined) sets.push('note = ?') && vals.push(patch.note);
+    if (patch.status) sets.push('status = ?') && vals.push(patch.status);
+    if (patch.messageId !== undefined) sets.push('message_id = ?') && vals.push(patch.messageId);
+    if (patch.added) sets.push('added = ?') && vals.push(JSON.stringify(patch.added));
+    this.db.prepare(`UPDATE drafts SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`).run(...vals, id, userId);
+  }
+
   /* ---------- Alerts already sent ---------- */
 
   wasSent(userId: number, key: string): boolean {
@@ -287,6 +338,7 @@ export class Store {
     this.db.prepare('DELETE FROM records WHERE data IS NULL AND updated_at < ?').run(now - 120 * 86400000);
     this.db.prepare('DELETE FROM login_codes WHERE expires_at < ?').run(now);
     this.db.prepare('DELETE FROM sessions WHERE used_at < ?').run(now - SESSION_IDLE_MS);
+    this.db.prepare('DELETE FROM drafts WHERE updated_at < ?').run(now - 14 * 86400000);
   }
 
   /** Writes a consistent copy of the database to `file`. */

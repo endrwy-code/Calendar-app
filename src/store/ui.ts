@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { CalEvent, Tab } from '../types';
 import { todayKey } from '../lib/dates';
 import type { IcsImport } from '../lib/ics';
+import type { PlanDraft } from '../lib/plans';
 
 export type EventEditorState = {
   id?: string;
@@ -32,6 +33,8 @@ interface UIState {
   searchOpen: boolean;
   /** An .ics file waiting for the user to confirm its import */
   importing: { fileName: string; result: IcsImport } | null;
+  /** Plans the bot read from a forwarded message, being reviewed before they're added */
+  review: PlanDraft | null;
   toasts: Toast[];
   setTab(tab: Tab): void;
   setCursor(dateKey: string): void;
@@ -45,6 +48,7 @@ interface UIState {
   setMenuOpen(v: boolean): void;
   setSearchOpen(v: boolean): void;
   setImporting(v: UIState['importing']): void;
+  setReview(v: PlanDraft | null): void;
   toast(message: string, action?: { label: string; run: () => void }): void;
   dismissToast(id: number): void;
 }
@@ -61,6 +65,7 @@ export const useUI = create<UIState>()((set, get) => ({
   menuOpen: false,
   searchOpen: false,
   importing: null,
+  review: null,
   toasts: [],
   setTab: (tab) => set({ tab }),
   setCursor: (cursor) => set({ cursor }),
@@ -73,6 +78,7 @@ export const useUI = create<UIState>()((set, get) => ({
   setMenuOpen: (menuOpen) => set({ menuOpen }),
   setSearchOpen: (searchOpen) => set({ searchOpen }),
   setImporting: (importing) => set({ importing }),
+  setReview: (review) => set({ review }),
   toast(message, action) {
     const id = ++toastId;
     set({ toasts: [...get().toasts.slice(-1), { id, message, actionLabel: action?.label, onAction: action?.run }] });

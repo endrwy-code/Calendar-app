@@ -783,3 +783,78 @@ button.tag-opt:active {
 .muted {
   color: var(--ink-2);
 }
+
+/* ---------- Review plans read from a forwarded message ---------- */
+.plan-intro {
+  padding: 4px 6px 2px;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.plan-intro em {
+  display: block;
+  margin-top: 6px;
+  color: var(--ink);
+}
+.plan-card {
+  transition: opacity 0.25s;
+}
+/* The fieldset has no box of its own (display: contents), so dim its rows */
+.plan-card.off .plan-body > *,
+.plan-card.off .plan-title {
+  opacity: 0.4;
+}
+.plan-body > * {
+  transition: opacity 0.25s;
+}
+.plan-body {
+  display: contents;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.plan-head {
+  gap: 12px;
+}
+.plan-check {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1.6px var(--line-2);
+  color: var(--on-ink);
+  transition:
+    background-color 0.2s,
+    box-shadow 0.2s,
+    transform 0.35s var(--spring-bounce);
+}
+.plan-check[aria-checked='true'] {
+  background: var(--ink);
+  box-shadow: none;
+}
+.plan-check:active {
+  transform: scale(0.88);
+}
+.plan-title {
+  font-weight: 600;
+}
+.plan-guess {
+  padding: 0 16px 12px 52px;
+  font-size: 13px;
+  line-height: 1.4;
+  font-style: italic;
+  color: var(--progress);
+  background-color: var(--surface);
+}
+.plan-body > * {
+  background-image: linear-gradient(var(--line), var(--line));
+  background-size: calc(100% - 50px) 1px;
+  background-position: 100% 0;
+  background-repeat: no-repeat;
+}
+.plan-body > .row.sub {
+  background-image: none;
+}

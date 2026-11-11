@@ -10,6 +10,8 @@ server. The server is one small container that:
 - keeps your devices in sync (newest edit wins when two devices change the same thing),
 - runs your Telegram bot: alerts, a morning summary, `/today`, `/tomorrow`,
   `/next`, quick to-dos (send it any text) and sign-in links for browsers,
+- optionally, reads plans out of messages you forward to the bot, with Claude,
+  and lets you check and edit them before they're added,
 - serves a private calendar link that Apple, Google or Outlook Calendar can subscribe to.
 
 It needs no other services: the database is built into Node.
@@ -101,6 +103,44 @@ git pull && docker compose up -d --build
 4. In **Settings → Alerts**, tap **Send a test message**. Choose the default
    alert for events, and turn on the **Morning summary** if you'd like one.
 
+## Plans from forwarded messages (optional)
+
+Forward the bot a message with plans in it (an announcement, an invite, a
+roster), or a photo of a poster, and it suggests events and to-dos. Nothing is
+added until you say so:
+
+- **Add all** puts them on your calendar (with **Undo**),
+- **Edit in Daybook** opens each one to change or leave out,
+- or **reply to the suggestion** in your own words: "make it 3pm", "it's at
+  the church hall", "drop the second one".
+
+Forwards that arrive together are read together. Dates like "tomorrow" or
+"this Sunday" are read from when the original message was sent. You can also
+type `/plan Dinner with Sam next Friday 7pm` to the bot.
+
+To turn it on:
+
+1. Create an API key in the Claude Console (platform.claude.com), and set a
+   monthly spend limit there.
+2. Add it to your server as `ANTHROPIC_API_KEY` (Railway: Variables; VPS:
+   `.env`, then `docker compose up -d`). The log then says
+   `Plans from messages: on (claude-opus-5-5)`.
+3. In the app: **Settings → Plans from messages → Read forwarded messages
+   with Claude**. It's off until each person turns it on.
+
+**Cost.** It uses Claude Opus 5.5 by default, which costs roughly a few US
+cents per message read (a photo adds a little). To spend less, set `AI_MODEL`
+to `claude-sonnet-5-5` or `claude-haiku-5-5`; they're cheaper and may get
+fiddly dates wrong more often. Each person can read at most 30 batches an hour.
+
+**What's sent where.** The text (and photos) you forward go to Anthropic's API
+to be read. Before they're sent, phone numbers, emails and NRIC/FIN numbers are
+removed. That's a best effort: names and other details stay. The original
+message isn't stored on your server, only the suggestions, and those are deleted
+after two weeks. If you use Daybook for church or work, check your
+organisation's AI policy before forwarding messages from those chats, and don't
+forward anything pastoral, medical, financial or about children.
+
 ## Bring over what you already have
 
 - **Inside Telegram**, the app keeps its data in Telegram's storage for your bot,
@@ -152,6 +192,8 @@ see your events, so keep it to yourself; **Turn off link** stops it working.
 | No alerts arrive | Press **Start** in your bot's chat once, then **Settings → Alerts → Let @bot message you**. |
 | Alerts at the wrong time | Open the app once on your phone, which tells the server your time zone, or set `DEFAULT_TZ`. |
 | Data gone after a Railway deploy | The volume isn't mounted at `/data`. |
+| Bot says the Anthropic API key was turned down | Check `ANTHROPIC_API_KEY`, and that the key's workspace has credit. |
+| Forwarded messages become to-dos instead | `ANTHROPIC_API_KEY` isn't set on the server. |
 
 ## Running the server on your computer
 
@@ -172,4 +214,5 @@ DAYBOOK_SERVER=http://localhost:8080 npm run dev
 
 All settings: `PORT` (8080), `DATA_DIR` (`./data`), `BOT_TOKEN`, `APP_URL`,
 `ALLOWED_USERS`, `DEFAULT_TZ` (UTC), `TRUST_PROXY` (`1`; set `0` if the server
-faces the internet directly), `BOT_POLLING` (`1`).
+faces the internet directly), `BOT_POLLING` (`1`), `ANTHROPIC_API_KEY`,
+`AI_MODEL` (`claude-opus-5-5`).

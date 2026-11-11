@@ -17,11 +17,25 @@ export interface TgUser {
   username?: string;
 }
 
+export interface TgPhotoSize {
+  file_id: string;
+  width: number;
+  height: number;
+  file_size?: number;
+}
+
 export interface TgMessage {
   message_id: number;
   from?: TgUser;
   chat: { id: number; type: string };
+  date?: number;
   text?: string;
+  caption?: string;
+  photo?: TgPhotoSize[];
+  /** Set on forwarded messages; `date` is when the original was sent */
+  forward_origin?: { type: string; date: number };
+  media_group_id?: string;
+  reply_to_message?: TgMessage;
 }
 
 export interface TgUpdate {
@@ -58,6 +72,20 @@ export class BotApi {
     } | null;
     if (!body?.ok) throw new TelegramError(body?.error_code ?? res.status, body?.description ?? 'unknown error', body?.parameters?.retry_after);
     return body.result as T;
+  }
+
+  /** Downloads a file someone sent the bot (photos are JPEG). Capped at 8 MB. */
+  async downloadFile(fileId: string): Promise<Buffer> {
+    const file = await this.call<{ file_path?: string; file_size?: number }>('getFile', { file_id: fileId });
+    if (!file.file_path || (file.file_size ?? 0) > 8 * 1024 * 1024) throw new TelegramError(400, 'file too large');
+    let res: Response;
+    try {
+      res = await fetch(`https://api.telegram.org/file/bot${this.token}/${file.file_path}`);
+    } catch {
+      throw new TelegramError(0, 'network error');
+    }
+    if (!res.ok) throw new TelegramError(res.status, 'download failed');
+    return Buffer.from(await res.arrayBuffer());
   }
 
   /** Sends a file as a document. */

@@ -12,13 +12,16 @@ import { isAllowed, type Config } from './config';
 import { newToken, sha256 } from './auth';
 import { agendaText, esc, nextText } from './messages';
 import type { Store, User } from './store';
-import { BotApi, TelegramError, type InlineButton, type TgUpdate, type TgUser } from './telegram';
+import { BotApi, TelegramError, type InlineButton, type TgMessage, type TgUpdate, type TgUser } from './telegram';
+import type { PlanReader } from './claude';
+import { PlanFlow, type ChatPort } from './planflow';
 
 export interface Messenger {
   send(chatId: number, html: string, opts?: { app?: boolean; buttons?: InlineButton[][] }): Promise<void>;
 }
 
 const COMMANDS = [
+  { command: 'plan', description: 'Turn text into calendar items: /plan Dinner with Sam Fri 7pm' },
   { command: 'today', description: 'What’s on today' },
   { command: 'tomorrow', description: 'What’s on tomorrow' },
   { command: 'next', description: 'Your next event' },
@@ -30,8 +33,10 @@ const COMMANDS = [
 const LOGIN_TTL_MS = 15 * 60000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export class Bot implements Messenger {
+export class Bot implements Messenger, ChatPort {
   username: string | null = null;
+  /** Plans from forwarded messages (when the server has an Anthropic API key) */
+  readonly plans: PlanFlow | null;
   private running = false;
   private abort = new AbortController();
 
@@ -39,11 +44,53 @@ export class Bot implements Messenger {
     readonly api: BotApi,
     private store: Store,
     private cfg: Config,
-  ) {}
+    reader: PlanReader | null = null,
+    batchMs?: number,
+  ) {
+    this.plans = reader ? new PlanFlow(this, store, cfg, reader, batchMs) : null;
+  }
 
   /** The app's address, if Telegram will accept it in a button (https only). */
-  private get appLink(): string | null {
+  get appLink(): string | null {
     return this.cfg.appUrl?.startsWith('https://') ? this.cfg.appUrl : null;
+  }
+
+  /* ---------- ChatPort: what the plan flow uses ---------- */
+
+  async post(chatId: number, html: string, rows?: InlineButton[][]): Promise<number | null> {
+    const m = await this.api.call<TgMessage>('sendMessage', {
+      chat_id: chatId,
+      text: html,
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true },
+      ...(rows?.length ? { reply_markup: { inline_keyboard: rows } } : {}),
+    });
+    return m?.message_id ?? null;
+  }
+
+  async edit(chatId: number, messageId: number, html: string, rows: InlineButton[][] = []) {
+    await this.api
+      .call('editMessageText', {
+        chat_id: chatId,
+        message_id: messageId,
+        text: html,
+        parse_mode: 'HTML',
+        link_preview_options: { is_disabled: true },
+        reply_markup: { inline_keyboard: rows },
+      })
+      .catch(() => {}); // e.g. "message is not modified"
+  }
+
+  async typing(chatId: number) {
+    await this.api.call('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
+  }
+
+  async answer(callbackId: string, text: string) {
+    await this.api.call('answerCallbackQuery', { callback_query_id: callbackId, text }).catch(() => {});
+  }
+
+  photo(fileId: string): Promise<Buffer> {
+    return this.api.downloadFile(fileId);
   }
 
   /** Connects to Telegram and sets up the command list and menu button. */
@@ -145,11 +192,22 @@ export class Bot implements Messenger {
     if (!user.chatOk) this.store.setChatOk(user.id, true);
 
     const text = (m.text ?? '').trim();
+    if (this.plans) {
+      // A reply to a draft changes it ("make it 3pm").
+      const replyTo = m.reply_to_message?.message_id;
+      const draftId = replyTo && text && !text.startsWith('/') ? this.store.draftByMessage(user.id, replyTo) : null;
+      if (draftId) return this.plans.revise(user, draftId, text);
+      // Forwarded messages and photos are read for plans.
+      if (m.forward_origin || m.photo?.length) return this.plans.collect(user, m);
+    }
     if (!text) return;
     const cmd = /^\/(\w+)(?:@\w+)?(?:\s+([\s\S]*))?$/.exec(text);
     if (!cmd) return this.addTodo(user, text);
     const arg = (cmd[2] ?? '').trim();
     switch (cmd[1].toLowerCase()) {
+      case 'plan':
+        if (!this.plans) return this.send(user.id, 'Reading plans needs an Anthropic API key on the server (ANTHROPIC_API_KEY).');
+        return arg ? this.plans.planText(user, arg) : this.send(user.id, 'Send <code>/plan</code> and the details, e.g. <code>/plan Dinner with Sam next Friday 7pm at Lau Pa Sat</code>. Or forward me a message.');
       case 'start':
         return arg === 'login' ? this.sendLogin(user) : this.welcome(user);
       case 'today':
@@ -176,6 +234,7 @@ export class Bot implements Messenger {
       help ? 'Here’s what I can do:' : `Hi ${esc(user.firstName || 'there')}! I’m your Daybook.`,
       '',
       '• I send your alerts here, and a morning summary if you turn it on in Settings.',
+      ...(this.plans ? ['• Forward me messages or photos with plans in them and I’ll suggest calendar items for you to check (turn it on in Settings).'] : []),
       '• Send me any text and I’ll add it to your to-dos.',
       '• /today and /tomorrow show what’s on. /next shows your next event.',
       '• /login gives you a link to use Daybook in a browser.',
@@ -221,6 +280,7 @@ export class Bot implements Messenger {
   }
 
   private async onButton(q: NonNullable<TgUpdate['callback_query']>) {
+    if (this.plans && (await this.plans.onButton(q))) return;
     const [action, id] = (q.data ?? '').split(':');
     if (action !== 'undo' || !id) return;
     // Only ever touches the tapping user's own records.

@@ -117,6 +117,11 @@ calendar and choose **Or put a to-do here**.
 - `/today`, `/tomorrow`, `/next`. Send the bot any text and it becomes a
   to-do (the first line is the title, the rest notes), with an Undo button.
 - `/login` sends a one-time link to sign in from a browser.
+- **Plans from forwarded messages** (with an Anthropic API key, and switched
+  on in Settings): forward messages or a photo of a poster, and Claude
+  suggests events and to-dos. You check them first: add them all (with
+  Undo), edit or leave out each one in the app, or reply in words ("make it
+  3pm"). See [DEPLOY.md](DEPLOY.md#plans-from-forwarded-messages-optional).
 
 Alerts are worked out in your time zone (your phone tells the server), each is
 sent once, and one missed during a restart is still sent within 10 minutes.
@@ -238,7 +243,9 @@ src/
                 tab bar), popover, toasts
   styles/       tokens (light/dark), base controls, layout, to-do, calendar, forms
 server/         the server: HTTP API + static hosting, SQLite store, Telegram
-                sign-in, bot, alerts scheduler (shares src/lib with the app)
+                sign-in, bot, alerts scheduler, plans from forwarded messages
+                (Claude, via the Messages API with built-in fetch); shares
+                src/lib with the app
 ```
 
 Stack: React 19, TypeScript, Vite, Zustand, date-fns, lucide plus a few

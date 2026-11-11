@@ -22,6 +22,8 @@ import { DEVICE_SETTINGS, type Settings } from '../types';
 import { hash } from './hash';
 import { isTelegram, requestWriteAccess, telegramInitData, telegramUserId } from './telegram';
 import { deviceTimeZone } from './tz';
+import type { PlanDraft, PlanItem } from './plans';
+import { useUI } from '../store/ui';
 
 export type SyncMode = 'off' | 'connecting' | 'signed-out' | 'ready';
 
@@ -36,6 +38,8 @@ interface Me {
   chatOk: boolean;
   feedUrl: string | null;
   bot: string | null;
+  /** The server can read plans from forwarded messages (it has an Anthropic API key) */
+  ai?: boolean;
 }
 
 export interface SyncState {
@@ -48,6 +52,8 @@ export interface SyncState {
   chatOk: boolean;
   /** Private calendar subscription link, if turned on */
   feedUrl: string | null;
+  /** Plans from forwarded messages are available on this server */
+  ai: boolean;
   lastSync: number | null;
   syncing: boolean;
   offline: boolean;
@@ -60,6 +66,7 @@ export const useSync = create<SyncState>(() => ({
   user: null,
   chatOk: false,
   feedUrl: null,
+  ai: false,
   lastSync: null,
   syncing: false,
   offline: false,
@@ -333,7 +340,7 @@ function stopLoop() {
 
 async function becomeReady(me: Me, offline = false) {
   ls.set(ME_KEY, JSON.stringify(me));
-  useSync.setState({ mode: 'ready', user: me.user, chatOk: me.chatOk, feedUrl: me.feedUrl, bot: me.bot, offline, error: null });
+  useSync.setState({ mode: 'ready', user: me.user, chatOk: me.chatOk, feedUrl: me.feedUrl, bot: me.bot, ai: !!me.ai, offline, error: null });
   loadPersisted(me.user.id);
   const first = persisted.rev === 0;
   startLoop();
@@ -371,9 +378,14 @@ export async function startSync(): Promise<void> {
   }
   useSync.setState({ mode: 'connecting', bot });
 
-  // A one-time sign-in link from the bot (?login=…)
+  // A one-time sign-in link from the bot (?login=…), or a draft to review (?review=…)
   const url = new URL(window.location.href);
   const code = url.searchParams.get('login');
+  const reviewId = url.searchParams.get('review');
+  if (reviewId) {
+    url.searchParams.delete('review');
+    window.history.replaceState(null, '', url.toString());
+  }
   if (code) {
     url.searchParams.delete('login');
     window.history.replaceState(null, '', url.toString());
@@ -412,6 +424,28 @@ export async function startSync(): Promise<void> {
     return;
   }
   await becomeReady({ ...me, bot: me.bot ?? bot });
+  if (reviewId) await openDraft(reviewId);
+}
+
+/* ---------- Plans read from forwarded messages ---------- */
+
+/** Opens the review sheet for a draft the bot made. */
+export async function openDraft(id: string) {
+  try {
+    const draft = await api<PlanDraft>(`drafts/${encodeURIComponent(id)}`);
+    useUI.getState().setReview(draft);
+  } catch {
+    useUI.getState().toast('That draft has expired. Forward the message to the bot again.');
+  }
+}
+
+/** Tells the server what happened to a draft, so the chat shows it too. */
+export async function finishDraft(id: string, outcome: { status: 'added'; items: PlanItem[] } | { status: 'cancelled' }) {
+  try {
+    await api(`drafts/${encodeURIComponent(id)}`, { body: outcome });
+  } catch {
+    /* the calendar is already updated; the chat just won't say so */
+  }
 }
 
 /** Signs this device out and clears its copy of the data (the server keeps it). */

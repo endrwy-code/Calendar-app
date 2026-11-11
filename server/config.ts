@@ -20,6 +20,10 @@ export interface Config {
   trustProxy: boolean;
   /** Fetch Telegram updates (commands, messages). Off for tests. */
   polling: boolean;
+  /** Anthropic API key: lets Claude read plans from forwarded messages. null = off. */
+  anthropicKey: string | null;
+  /** Claude model for reading plans */
+  aiModel: string;
 }
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -41,6 +45,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     defaultTz: tz && isValidTimeZone(tz) ? tz : 'UTC',
     trustProxy: env.TRUST_PROXY !== '0',
     polling: env.BOT_POLLING !== '0',
+    anthropicKey: env.ANTHROPIC_API_KEY?.trim() || null,
+    aiModel: env.AI_MODEL?.trim() || 'claude-opus-5-5',
   };
 }
 

@@ -16,4 +16,5 @@ export const DEFAULT_SETTINGS: Settings = {
   todoAlerts: true,
   dailyAgenda: null,
   telegramAlerts: true,
+  aiPlans: false,
 };
