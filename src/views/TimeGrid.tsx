@@ -1,4 +1,4 @@
-import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type MutableRefObject } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type MutableRefObject } from 'react';
 import { flushSync } from 'react-dom';
 import { addDays, differenceInCalendarDays, format, isWeekend, startOfWeek } from 'date-fns';
 import { useData } from '../store/data';
@@ -13,13 +13,22 @@ import { periodStart, shiftCursor, spanOf } from '../lib/period';
 import { usePager } from '../lib/usePager';
 import { toggleDone } from '../lib/actions';
 import { haptic } from '../lib/telegram';
+import { animateSpring, rubberClamp, type SpringAnimation } from '../lib/motion';
 import { StatusGlyph } from '../components/StatusCircle';
 import type { ColorKey, Task, ViewMode } from '../types';
 
 export interface PagerControl {
   go(dir: 1 | -1): void;
   scrollToNow?(): void;
+  /** Zoom the hours in (1), out (-1), or back to the default size (0). */
+  zoom?(dir: 1 | -1 | 0): void;
 }
+
+/* Zoom: the height of one hour, in px. */
+const CANVAS_TOP = 10; // .tg-canvas top margin
+const MAX_HOUR_H = 200;
+/** Far: every other hour label. Close: half-hour lines and 15-minute taps. */
+const zoomBand = (h: number) => (h < 34 ? 'far' : h >= 96 ? 'close' : 'mid');
 
 type Block = {
   key: string;
@@ -62,9 +71,11 @@ export function TimeGrid({ view, controlRef }: { view: ViewMode; controlRef: Mut
   const showWeekNumbers = useData((s) => s.settings.showWeekNumbers);
   const defaultMin = useData((s) => s.settings.defaultEventMinutes);
   const updateSettings = useData((s) => s.updateSettings);
+  const storedHourH = useData((s) => s.settings.hourHeight);
   const wide = useMediaQuery('(min-width: 1024px)');
   const fine = useMediaQuery('(pointer: fine)');
-  const hourH = wide ? 60 : 52;
+  const autoHourH = wide ? 60 : 52;
+  const hourH = storedHourH ?? autoHourH;
   const ppm = hourH / 60;
   const now = useNow(30000);
   const todayK = toDateKey(now);
@@ -171,6 +182,7 @@ export function TimeGrid({ view, controlRef }: { view: ViewMode; controlRef: Mut
   const viewRef = useRef(view);
   viewRef.current = view;
 
+  const pinching = useRef(false);
   const { go } = usePager({
     rootRef,
     trackRefs: [headTrack, adTrack, bodyTrack],
@@ -179,14 +191,193 @@ export function TimeGrid({ view, controlRef }: { view: ViewMode; controlRef: Mut
       flushSync(() => setCursor(shiftCursor(viewRef.current, useUI.getState().cursor, dir)));
       haptic.select();
     },
+    isBlocked: () => pinching.current,
   });
+
+  /* ---------- Zoom ----------
+     Pinch with two fingers (or Ctrl/⌘ + scroll, a trackpad pinch, or + and −)
+     to change how tall an hour is. Zoom out to see the whole day at once, in to
+     place things to the quarter hour. The time under your fingers stays put.
+     While zooming only the --hour-h variable changes; the size is saved (per
+     device) when the gesture ends. */
+  const liveH = useRef(hourH);
+  const zoomAnim = useRef<SpringAnimation | null>(null);
+  useLayoutEffect(() => {
+    if (!zoomAnim.current && !pinching.current) liveH.current = hourH;
+  }, [hourH]);
+
+  const zoomLimits = useCallback(() => {
+    const el = scrollRef.current;
+    // Zooming out stops once the whole day fits on screen.
+    const fit = el ? (el.clientHeight - 34) / 24 : 20;
+    return { min: Math.max(16, Math.min(fit, 60)), max: MAX_HOUR_H };
+  }, []);
+
+  /** Shows hours at height `h`, keeping `minute` at `anchorY` px from the top of the scroll area. */
+  const applyZoom = useCallback((h: number, anchorY: number, minute: number) => {
+    const el = scrollRef.current;
+    const root = rootRef.current;
+    if (!el || !root) return;
+    liveH.current = h;
+    root.style.setProperty('--hour-h', `${h}px`);
+    root.dataset.zoom = zoomBand(h);
+    el.scrollTop = (minute * h) / 60 + CANVAS_TOP - anchorY;
+  }, []);
+
+  const minuteAt = useCallback((anchorY: number) => {
+    const el = scrollRef.current;
+    return el ? ((el.scrollTop + anchorY - CANVAS_TOP) * 60) / liveH.current : 0;
+  }, []);
+
+  const commitZoom = useCallback(
+    (reset = false) => {
+      updateSettings({ hourHeight: reset ? null : Math.round(liveH.current * 10) / 10 });
+    },
+    [updateSettings],
+  );
+
+  /** Springs to `target` around an anchor, then saves. */
+  const animateZoom = useCallback(
+    (target: number, anchorY: number, minute: number, reset = false) => {
+      zoomAnim.current?.stop();
+      zoomAnim.current = animateSpring({
+        from: liveH.current,
+        to: target,
+        dampingRatio: 1,
+        response: 0.32,
+        restDelta: 0.05,
+        restSpeed: 1,
+        onUpdate: (v) => applyZoom(v, anchorY, minute),
+        onComplete: () => {
+          zoomAnim.current = null;
+          commitZoom(reset);
+        },
+      });
+    },
+    [applyZoom, commitZoom],
+  );
+
+  const zoom = useCallback(
+    (dir: 1 | -1 | 0) => {
+      const el = scrollRef.current;
+      if (!el) return;
+      const { min, max } = zoomLimits();
+      const y = el.clientHeight / 2;
+      const target = dir === 0 ? autoHourH : Math.min(max, Math.max(min, liveH.current * (dir > 0 ? 1.3 : 1 / 1.3)));
+      haptic.select();
+      animateZoom(target, y, minuteAt(y), dir === 0);
+    },
+    [animateZoom, autoHourH, minuteAt, zoomLimits],
+  );
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let pinch: { d0: number; h0: number; minute: number; y: number } | null = null;
+    const dist = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const midY = (t: TouchList) => (t[0].clientY + t[1].clientY) / 2 - el.getBoundingClientRect().top;
+
+    const settle = () => {
+      const { min, max } = zoomLimits();
+      const h = liveH.current;
+      const anchor = pinch ?? { y: el.clientHeight / 2, minute: minuteAt(el.clientHeight / 2) };
+      if (h < min || h > max) animateZoom(Math.min(max, Math.max(min, h)), anchor.y, anchor.minute);
+      else commitZoom();
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 2) return;
+      e.preventDefault();
+      zoomAnim.current?.stop();
+      zoomAnim.current = null;
+      pinching.current = true;
+      const y = midY(e.touches);
+      pinch = { d0: Math.max(12, dist(e.touches)), h0: liveH.current, minute: minuteAt(y), y };
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pinch || e.touches.length !== 2) return;
+      e.preventDefault();
+      const { min, max } = zoomLimits();
+      const y = midY(e.touches);
+      pinch.y = y;
+      // Past the limits the zoom resists, then springs back on release.
+      applyZoom(rubberClamp(pinch.h0 * (dist(e.touches) / pinch.d0), min, max, max * 0.25), y, pinch.minute);
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!pinch || e.touches.length >= 2) return;
+      settle();
+      pinch = null;
+      // Let the lifted fingers finish before the pager listens again.
+      setTimeout(() => (pinching.current = false), 80);
+    };
+
+    let wheelTimer: ReturnType<typeof setTimeout> | undefined;
+    const onWheel = (e: WheelEvent) => {
+      // Trackpad pinches arrive as wheel events with ctrlKey set.
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      zoomAnim.current?.stop();
+      zoomAnim.current = null;
+      const { min, max } = zoomLimits();
+      const y = e.clientY - el.getBoundingClientRect().top;
+      const delta = Math.max(-40, Math.min(40, e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY));
+      const h = Math.min(max, Math.max(min, liveH.current * Math.exp(-delta * 0.005)));
+      applyZoom(h, y, minuteAt(y));
+      clearTimeout(wheelTimer);
+      wheelTimer = setTimeout(() => commitZoom(), 250);
+    };
+
+    // Safari on a Mac reports trackpad pinches as gesture events. On iPhone they
+    // duplicate the touch events, so there they're only cancelled.
+    let g: { h0: number; y: number; minute: number } | null = null;
+    const desktop = window.matchMedia('(pointer: fine)').matches;
+    const onGestureStart = (e: Event) => {
+      e.preventDefault();
+      if (!desktop) return;
+      const y = (e as unknown as { clientY: number }).clientY - el.getBoundingClientRect().top;
+      g = { h0: liveH.current, y, minute: minuteAt(y) };
+    };
+    const onGestureChange = (e: Event) => {
+      e.preventDefault();
+      if (!g) return;
+      const { min, max } = zoomLimits();
+      applyZoom(Math.min(max, Math.max(min, g.h0 * (e as unknown as { scale: number }).scale)), g.y, g.minute);
+    };
+    const onGestureEnd = (e: Event) => {
+      e.preventDefault();
+      if (g) commitZoom();
+      g = null;
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: false });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd);
+    el.addEventListener('touchcancel', onTouchEnd);
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('gesturestart', onGestureStart);
+    el.addEventListener('gesturechange', onGestureChange);
+    el.addEventListener('gestureend', onGestureEnd);
+    return () => {
+      clearTimeout(wheelTimer);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('gesturestart', onGestureStart);
+      el.removeEventListener('gesturechange', onGestureChange);
+      el.removeEventListener('gestureend', onGestureEnd);
+    };
+  }, [animateZoom, applyZoom, commitZoom, minuteAt, zoomLimits]);
+
+  useEffect(() => () => zoomAnim.current?.stop(), []);
 
   const scrollToNow = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    el.scrollTo({ top: Math.max(0, minutesOfDay(new Date()) * ppm - el.clientHeight * 0.3), behavior: 'smooth' });
-  }, [ppm]);
-  controlRef.current = { go, scrollToNow };
+    el.scrollTo({ top: Math.max(0, (minutesOfDay(new Date()) * liveH.current) / 60 - el.clientHeight * 0.3), behavior: 'smooth' });
+  }, []);
+  controlRef.current = { go, scrollToNow, zoom };
 
   // Open near the current time (or 7am on other days). Scroll is kept while paging.
   useLayoutEffect(() => {
@@ -200,7 +391,8 @@ export function TimeGrid({ view, controlRef }: { view: ViewMode; controlRef: Mut
   /* ---------- Interactions ---------- */
   const onSlot = useCallback(
     (dateKey: string, minutes: number) => {
-      const min = Math.floor(minutes / 30) * 30;
+      const step = liveH.current >= 96 ? 15 : 30;
+      const min = Math.floor(minutes / step) * step;
       const s = parseLocal(dateKey);
       s.setMinutes(min);
       const e = new Date(s.getTime() + defaultMin * 60000);
@@ -266,7 +458,7 @@ export function TimeGrid({ view, controlRef }: { view: ViewMode; controlRef: Mut
   const stripIdx = weekStrip.findIndex((d) => toDateKey(d) === cursor);
 
   return (
-    <div className={`tg v-${view}`} ref={rootRef} style={{ ['--hour-h' as string]: `${hourH}px`, ['--n' as string]: n }}>
+    <div className={`tg v-${view}`} ref={rootRef} data-zoom={zoomBand(hourH)} style={{ ['--hour-h' as string]: `${hourH}px`, ['--n' as string]: n }}>
       {view === 'day' ? (
         <div className="tg-strip" style={{ ['--i' as string]: stripIdx }}>
           <span className="strip-sel" aria-hidden>
@@ -374,19 +566,19 @@ export function TimeGrid({ view, controlRef }: { view: ViewMode; controlRef: Mut
       )}
 
       <div className="tg-scroll scroll-y" ref={scrollRef}>
-        <div className="tg-canvas" style={{ height: 24 * hourH }}>
+        <div className="tg-canvas">
           <div className="tg-gutter" aria-hidden>
             {Array.from({ length: 23 }, (_, i) => i + 1).map((h) => (
               <span
                 key={h}
-                className={`tg-hour ${currentHasToday && Math.abs(nowMin - h * 60) < 18 ? 'hide' : ''}`}
-                style={{ top: h * hourH }}
+                className={`tg-hour ${h % 2 ? 'odd' : ''} ${currentHasToday && Math.abs(nowMin - h * 60) * ppm < 15 ? 'hide' : ''}`}
+                style={{ top: `calc(var(--hour-h) * ${h})` }}
               >
                 {fmtHourLabel(h, tf)}
               </span>
             ))}
             {currentHasToday && (
-              <span className="tg-nowlabel" style={{ transform: `translate3d(0, ${nowMin * ppm}px, 0) translateY(-50%)` }}>
+              <span className="tg-nowlabel" style={{ transform: `translate3d(0, calc(var(--hour-h) * ${nowMin / 60}), 0) translateY(-50%)` }}>
                 {fmtTime(now, tf)}
               </span>
             )}
@@ -417,7 +609,7 @@ export function TimeGrid({ view, controlRef }: { view: ViewMode; controlRef: Mut
                       );
                     })}
                     {todayCol >= 0 && (
-                      <div className="now" style={{ transform: `translate3d(0, ${nowMin * ppm}px, 0)` }} aria-hidden>
+                      <div className="now" style={{ transform: `translate3d(0, calc(var(--hour-h) * ${nowMin / 60}), 0)` }} aria-hidden>
                         <div className="now-rule" />
                         <div className="now-seg" style={{ left: `${(todayCol / n) * 100}%`, width: `${100 / n}%` }}>
                           <i />
@@ -451,9 +643,10 @@ const DayColumn = memo(function DayColumn(props: {
   const { data, ppm, pastBefore, weekend, narrow, ghost, tf, fine, onSlot, onOpenBlock, onDropAt } = props;
   const [preview, setPreview] = useState<{ startMin: number; durationMin: number } | null>(null);
 
+  // Measured from the column itself, so it's right mid-zoom too.
   const minutesAt = (clientY: number, el: HTMLElement) => {
     const r = el.getBoundingClientRect();
-    return Math.max(0, Math.min(1439, (clientY - r.top) / ppm));
+    return Math.max(0, Math.min(1439, ((clientY - r.top) * 1440) / (r.height || 1)));
   };
 
   const onClick = (e: MouseEvent<HTMLDivElement>) => {
@@ -485,7 +678,6 @@ const DayColumn = memo(function DayColumn(props: {
       }}
     >
       {data.blocks.map((b) => {
-        const top = b.startMin * ppm + 1;
         const height = Math.max((b.endMin - b.startMin) * ppm - 2, 18);
         const done = b.task?.status === 'done';
         const canDrag = fine && !b.recurring;
@@ -501,8 +693,8 @@ const DayColumn = memo(function DayColumn(props: {
             tabIndex={0}
             className={`ev c-${b.color} ${b.kind === 'task' ? 'is-task' : ''} ${done ? 'is-done' : ''} ${b.end.getTime() <= pastBefore ? 'past' : ''} ${height < 30 ? 'short' : ''}`}
             style={{
-              top,
-              height,
+              top: `calc(var(--hour-h) * ${b.startMin / 60} + 1px)`,
+              height: `max(18px, calc(var(--hour-h) * ${(b.endMin - b.startMin) / 60} - 2px))`,
               left: `calc(${(b.col / b.cols) * 100}% + 1px)`,
               width: `calc(${(b.span / b.cols) * 100}% - 3px)`,
               ['--lines' as string]: lines,
@@ -514,10 +706,11 @@ const DayColumn = memo(function DayColumn(props: {
               canDrag
                 ? (e) => {
                     const r = e.currentTarget.getBoundingClientRect();
+                    const col = e.currentTarget.parentElement!.getBoundingClientRect();
                     drag = {
                       kind: b.kind,
                       id: b.kind === 'task' ? b.task!.id : b.occ!.event.id,
-                      grabMin: Math.max(0, (e.clientY - r.top) / ppm),
+                      grabMin: Math.max(0, ((e.clientY - r.top) * 1440) / (col.height || 1)),
                       durationMin: Math.round((b.end.getTime() - b.start.getTime()) / 60000),
                     };
                     e.dataTransfer.setData('text/plain', b.key);
@@ -557,12 +750,12 @@ const DayColumn = memo(function DayColumn(props: {
         );
       })}
       {ghost && (
-        <div className="ev ghost" style={{ top: ghost.startMin * ppm + 1, height: Math.max((ghost.endMin - ghost.startMin) * ppm - 2, 18) }}>
+        <div className="ev ghost" style={{ top: `calc(var(--hour-h) * ${ghost.startMin / 60} + 1px)`, height: `max(18px, calc(var(--hour-h) * ${(ghost.endMin - ghost.startMin) / 60} - 2px))` }}>
           <span className="ev-title">New event</span>
         </div>
       )}
       {preview && (
-        <div className="ev ghost" style={{ top: preview.startMin * ppm + 1, height: Math.max(18, preview.durationMin * ppm - 2) }}>
+        <div className="ev ghost" style={{ top: `calc(var(--hour-h) * ${preview.startMin / 60} + 1px)`, height: `max(18px, calc(var(--hour-h) * ${preview.durationMin / 60} - 2px))` }}>
           <span className="ev-title">{fmtTime(new Date(data.date.getFullYear(), data.date.getMonth(), data.date.getDate(), 0, preview.startMin), tf)}</span>
         </div>
       )}

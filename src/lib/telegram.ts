@@ -20,6 +20,7 @@ type StorageCb = (err: string | null, value?: string | null) => void;
 
 interface TgWebApp {
   initData: string;
+  initDataUnsafe?: { user?: { id: number; first_name?: string; username?: string } };
   version: string;
   platform: string;
   colorScheme: 'light' | 'dark';
@@ -37,6 +38,8 @@ interface TgWebApp {
   onEvent(name: string, cb: Cb): void;
   offEvent(name: string, cb: Cb): void;
   BackButton?: { show(): void; hide(): void; onClick(cb: Cb): void; offClick(cb: Cb): void };
+  requestWriteAccess?: (cb?: (granted: boolean) => void) => void;
+  openTelegramLink?: (url: string) => void;
   HapticFeedback?: {
     impactOccurred(style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft'): void;
     notificationOccurred(type: 'error' | 'success' | 'warning'): void;
@@ -136,6 +139,33 @@ export function setTelegramChrome(colors: { header: string; background: string; 
   } catch {
     /* older client */
   }
+}
+
+/** Signed launch data, which the server checks to sign you in. */
+export function telegramInitData(): string | null {
+  return tg?.initData || null;
+}
+
+export function telegramUserId(): number | null {
+  return tg?.initDataUnsafe?.user?.id ?? null;
+}
+
+/** Asks for permission for the bot to message you (Bot API 6.9+). */
+export function requestWriteAccess(): Promise<boolean> {
+  if (!tg || !atLeast('6.9') || !tg.requestWriteAccess) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    try {
+      tg.requestWriteAccess!((granted) => resolve(!!granted));
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+/** Opens a t.me link: inside Telegram without leaving it, elsewhere in a new tab. */
+export function openTelegramLink(url: string) {
+  if (tg?.openTelegramLink && atLeast('6.1')) tg.openTelegramLink(url);
+  else window.open(url, '_blank', 'noopener');
 }
 
 export const haptic = {

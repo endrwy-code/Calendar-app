@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { useData } from '../store/data';
 import { useUI } from '../store/ui';
 import { todayKey } from '../lib/dates';
@@ -20,6 +20,8 @@ export function CalendarView({ active }: { active: boolean }) {
   const setCursor = useUI((s) => s.setCursor);
   const openEvent = useUI((s) => s.openEvent);
   const setMenuOpen = useUI((s) => s.setMenuOpen);
+  const setSearchOpen = useUI((s) => s.setSearchOpen);
+  const updateSettings = useData((s) => s.updateSettings);
   const wide = useMediaQuery('(min-width: 1024px)');
   const control = useRef<PagerControl | null>(null);
   const titleRef = useRef<HTMLButtonElement>(null);
@@ -51,15 +53,28 @@ export function CalendarView({ active }: { active: boolean }) {
     } else setCursor(today);
   };
 
-  // ← / → page on desktop
+  // Keyboard, on a computer: ← → page, T today, D 3 W M L views, N new event, / search, + − 0 zoom.
   useEffect(() => {
     if (!active) return;
+    const views: Record<string, typeof view> = { d: 'day', '3': '3day', w: 'week', m: 'month', l: 'agenda' };
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       if (t.closest('input, textarea, select, [contenteditable]') || document.querySelector('.sheet-layer, .drawer-layer')) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const k = e.key.toLowerCase();
       if (e.key === 'ArrowLeft') page(-1);
       else if (e.key === 'ArrowRight') page(1);
-      else if (e.key === 't') goToday();
+      else if (k === 't') goToday();
+      else if (views[k]) updateSettings({ calendarView: views[k] });
+      else if (k === 'n') {
+        e.preventDefault();
+        openEvent({});
+      } else if (e.key === '/') {
+        e.preventDefault();
+        setSearchOpen(true);
+      } else if (e.key === '+' || e.key === '=') control.current?.zoom?.(1);
+      else if (e.key === '-' || e.key === '_') control.current?.zoom?.(-1);
+      else if (e.key === '0') control.current?.zoom?.(0);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -86,6 +101,9 @@ export function CalendarView({ active }: { active: boolean }) {
           <CaretIcon className={`cal-title-caret ${datePop ? 'up' : ''}`} />
         </button>
         <span className="spacer" />
+        <button className="icon-btn bar-btn" aria-label="Search" title="Search (/)" onClick={() => setSearchOpen(true)}>
+          <Search size={21} strokeWidth={1.8} />
+        </button>
         {wide && (
           <>
             <button className="icon-btn bar-btn" aria-label="Previous" onClick={() => page(-1)}>

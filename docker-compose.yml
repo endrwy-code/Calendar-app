@@ -1,0 +1,36 @@
+# Daybook on your own server (a small VPS), with Caddy in front for HTTPS.
+#   1. Point your domain at the server's IP address.
+#   2. cp .env.example .env, then fill it in (BOT_TOKEN, APP_URL, ALLOWED_USERS, DOMAIN).
+#   3. docker compose up -d --build
+# Full steps: DEPLOY.md
+services:
+  daybook:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - daybook-data:/data
+    expose:
+      - "8080"
+
+  caddy:
+    # 2.11.9 is newer but under two weeks old (released 4 Nov 2026); move to it after 18 Nov.
+    image: caddy:2.11.7-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - daybook
+
+volumes:
+  daybook-data:
+  caddy-data:
+  caddy-config:

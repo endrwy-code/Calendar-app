@@ -1,0 +1,5 @@
+# Caddy gets and renews the HTTPS certificate for your domain by itself.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy daybook:8080
+}

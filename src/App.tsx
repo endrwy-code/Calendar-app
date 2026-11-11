@@ -12,6 +12,9 @@ import { EventSheet } from './components/EventSheet';
 import { TodoSheet } from './components/TodoSheet';
 import { ScheduleSheet } from './components/ScheduleSheet';
 import { SettingsSheet } from './components/SettingsSheet';
+import { SearchSheet } from './components/SearchSheet';
+import { DropZone, ImportSheet } from './components/ImportSheet';
+import { startSync } from './lib/sync';
 import { Toasts } from './components/Toasts';
 import { TgSim } from './components/TgSim';
 import { TodoView } from './views/TodoView';
@@ -62,7 +65,12 @@ export default function App() {
   const theme = useEffectiveTheme();
   const tab = useUI((s) => s.tab);
   const setTab = useUI((s) => s.setTab);
-  const anySheet = useUI((s) => !!(s.eventEditor || s.todoId || s.scheduleId || s.settingsOpen || s.menuOpen));
+  const anySheet = useUI((s) => !!(s.eventEditor || s.todoId || s.scheduleId || s.settingsOpen || s.menuOpen || s.searchOpen || s.importing));
+
+  // Once local data has loaded, look for the Daybook server and sync with it.
+  useEffect(() => {
+    if (hydrated) void startSync();
+  }, [hydrated]);
 
   // The calendar mounts once the app is idle (or on first visit), then stays mounted to keep its scroll position.
   const [calendarReady, setCalendarReady] = useState(tab === 'calendar');
@@ -115,6 +123,9 @@ export default function App() {
       <ScheduleSheet />
       <EventSheet />
       <SettingsSheet />
+      <SearchSheet />
+      <ImportSheet />
+      <DropZone />
       <Toasts />
       {isTgSimulation && <TgSim />}
     </div>

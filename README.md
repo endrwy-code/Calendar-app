@@ -4,6 +4,11 @@ A calm to-do list and a calendar in one place. It's built to run as a
 **Telegram Mini App in fullscreen**, and it also works as a normal web app (or
 an installable PWA) on your phone and desktop.
 
+On its own, everything stays on your device. With its small **server** (one
+container, see [DEPLOY.md](DEPLOY.md)) your phone and computer stay in sync,
+your calendar is stored in a database with daily backups, and your Telegram
+bot sends alerts like a calendar app would.
+
 There are two places, **To-do** and **Calendar**, switched with the tab bar at
 the bottom (in thumb reach). Tap a tab or drag the highlight across. The **☰**
 menu at the top left of either screen holds the calendar views, which
@@ -53,6 +58,13 @@ calendar and choose **Or put a to-do here**.
 - **Swipe to change week, day or month.** The next page follows your finger
   and settles with a spring, based on how far and how fast you swiped. You can
   catch it while it's still moving. On desktop, use the arrows or ← / →.
+- **Pinch to zoom the hours** in the day, 3-day and week views. Zoom out until
+  the whole day fits on screen (labels thin out to every other hour), or in to
+  place things precisely (half-hour lines appear and taps snap to 15 minutes).
+  The time under your fingers stays put, and the size is remembered on each
+  device. On a computer: Ctrl/⌘ + scroll, a trackpad pinch, or `+` `−` `0`.
+- **Search** (the magnifier, or `/`) finds events and to-dos by any word in
+  the title, place or notes. Repeating events jump to their next occurrence.
 - The **current time** shows as a red time label in the hour column, a faint
   line across the week, and a solid line on today.
 - All-day events are drawn as bars across the days they cover.
@@ -63,13 +75,51 @@ calendar and choose **Or put a to-do here**.
   tag; place; notes. Repeat options only appear once you choose to repeat.
 - Tap an empty slot to create an event there (a placeholder marks the spot).
   Tap a day heading to open that day.
-- Events can repeat daily, on weekdays, weekly on chosen days, monthly or
-  yearly, with an end date. When you edit or delete a repeating event you
-  choose "this event only", "this and following" or "all events".
+- Events can repeat daily, on weekdays, weekly on chosen days, monthly
+  (on the same date, or on the same weekday, like "the 1st Sunday" or "the
+  last Friday") or yearly, with an end date. When you edit or delete a
+  repeating event you choose "this event only", "this and following" or
+  "all events".
+- **Alerts** (when the server is connected): each event follows the default
+  alert from Settings, or has its own (and a second one). They arrive as
+  Telegram messages.
+- From an event: **Duplicate** (same details, new time) or **Export as .ics**
+  to send it to someone.
+- Keyboard on a computer: `D` `3` `W` `M` `L` views, `N` new event, `T`
+  today, `/` search, `←` `→` pages, `+` `−` `0` zoom.
 - **Tags** (Personal, Work, Church…) are yours to name. The form shows only
   the one an event has; tap it to pick another or type a **New tag** on the
   spot. Rename, recolour or delete tags at the top of Settings, and show or
   hide them from the ☰ menu.
+
+## Import and export
+
+- **Import** `.ics` files from Google, Apple or Outlook Calendar: **Settings →
+  Import a calendar (.ics)**, or drop the files anywhere on the window. You see
+  how many events there are, pick the tag they go under (a new tag named after
+  the calendar is suggested), and can undo. Times written in other time zones
+  are moved to yours, repeat rules are kept (rules Daybook can't express are
+  kept as their first date, and the import says how many), cancelled or moved
+  occurrences become exceptions, and alarms become alerts. Importing the same
+  file again updates those events instead of adding them twice.
+- **Export** all events, or one tag's, as an `.ics` file from Settings, or a
+  single event from its page. Inside Telegram (which can't download files) the
+  bot sends the file to your chat instead.
+- With the server: a private **subscription link** shows Daybook in Apple,
+  Google or Outlook Calendar and keeps it up to date.
+
+## Alerts and the bot (with the server)
+
+- Alerts for events (a default for timed and for all-day events, or per
+  event) and when a to-do you put on the calendar starts.
+- A **morning summary** at a time you choose: the day's events, planned
+  to-dos, and how many to-dos are open.
+- `/today`, `/tomorrow`, `/next`. Send the bot any text and it becomes a
+  to-do (the first line is the title, the rest notes), with an Undo button.
+- `/login` sends a one-time link to sign in from a browser.
+
+Alerts are worked out in your time zone (your phone tells the server), each is
+sent once, and one missed during a restart is still sent within 10 minutes.
 
 ## Motion
 
@@ -94,8 +144,8 @@ the Human Interface Guidelines on motion. The building blocks are in
 Tags come first (rename, recolour, delete, add). Then appearance (Automatic /
 Light / Dark, where Automatic follows Telegram), and the calendar: week start,
 12/24h clock, week numbers, default event length and the hours that "Add to
-calendar" suggests. Backup and sample data are folded away under **Backup and
-data**.
+calendar" suggests. Then alerts, import and export, and your account (with the
+server). Backup and sample data are folded away under **Backup and data**.
 
 ## Run it locally
 
@@ -110,11 +160,18 @@ That draws a fake status bar and Telegram's Close / ⋯ buttons, using typical
 iPhone inset values.
 
 ```bash
-npm test        # unit tests (recurrence, free slots, paging, springs, to-do ordering)
+npm test        # unit tests: recurrence, free slots, paging, springs, .ics, alerts, time zones,
+                # and the server (sign-in checks, sync conflicts, the API, alerts, bot commands)
 npm run build   # type-check + production build into dist/
+npm run server  # build everything and run the server on :8080 (see DEPLOY.md for settings)
 ```
 
-## Put it in Telegram
+## Put it online
+
+**[DEPLOY.md](DEPLOY.md)** walks through running the server on Railway or on
+your own VPS, pointing your bot at it, and moving your data across.
+
+## Put it in Telegram (app only, no server)
 
 1. **Host it on HTTPS.** The included workflow deploys to GitHub Pages. In the
    repo, go to *Settings → Pages* and set *Source* to **GitHub Actions**. Then
@@ -156,29 +213,38 @@ and right insets are respected in landscape.
 
 ## Your data
 
-Everything is stored on the device. Inside Telegram (Bot API 9.0+) that's
-Telegram's `DeviceStorage` (5 MB per user per bot), mirrored to
-`localStorage`. In a browser it's `localStorage` only. Use **Settings → Backup
-and data** to download, copy or import a backup. Nothing is sent to a server.
-Data from earlier versions loads as-is. Old due dates and steps still show
-on the to-do they belong to, so nothing is lost.
+Everything is saved on the device first, so the app works offline. Inside
+Telegram (Bot API 9.0+) that's Telegram's `DeviceStorage` (5 MB per user per
+bot), mirrored to `localStorage`. In a browser it's `localStorage` only. Use
+**Settings → Backup and data** to download, copy or import a backup. Data
+from earlier versions loads as-is.
+
+Without the server nothing leaves the device. With it, each change goes up a
+moment later and other devices pick it up within half a minute (or as soon as
+they're opened). Sample data never leaves the device. See
+[DEPLOY.md](DEPLOY.md#your-data) for what the server keeps and how it's backed up.
 
 ## Project layout
 
 ```
 src/
   lib/          motion (springs, momentum), pager, FLIP, dates, recurrence,
-                free-slot finder, Telegram bridge
+                free-slot finder, Telegram bridge, .ics, time zones, alerts,
+                search, sync with the server
   store/        persisted data store (events, to-dos, calendars, settings) + UI state
   views/        To-do (list + swipe rows), Calendar (TimeGrid, Month, List)
-  components/   sheets (to-do, add to calendar, event, settings), side menu,
-                icons, segmented control (also drives the tab bar), popover,
-                toasts
+  components/   sheets (to-do, add to calendar, event, settings, search,
+                import), side menu, icons, segmented control (also drives the
+                tab bar), popover, toasts
   styles/       tokens (light/dark), base controls, layout, to-do, calendar, forms
+server/         the server: HTTP API + static hosting, SQLite store, Telegram
+                sign-in, bot, alerts scheduler (shares src/lib with the app)
 ```
 
 Stack: React 19, TypeScript, Vite, Zustand, date-fns, lucide plus a few
-custom icons (tabs, menu, today, views). Text uses the system font (SF Pro on
+custom icons (tabs, menu, today, views). The server is plain Node (26 in the
+image; 22.13+ works) with its built-in `node:http` and `node:sqlite`, bundled
+into one file, so it adds no runtime dependencies. Text uses the system font (SF Pro on
 Apple devices) with Inter as the fallback. The quote, the month title and the
 menu title use Fraunces, upright with soft terminals. Fonts are bundled so
 the app works offline.

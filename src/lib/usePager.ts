@@ -21,6 +21,8 @@ export function usePager(opts: {
   onCommit: (dir: 1 | -1) => void;
   onSettle?: () => void;
   enabled?: boolean;
+  /** While true (e.g. during a pinch), finger movement doesn't page. */
+  isBlocked?: () => boolean;
 }) {
   const optsRef = useRef(opts);
   optsRef.current = opts;
@@ -123,6 +125,12 @@ export function usePager(opts: {
 
     const move = (e: PointerEvent) => {
       if (e.pointerId !== id) return;
+      if (optsRef.current.isBlocked?.()) {
+        id = null;
+        if (mode === 'h' || x.current !== 0) release(0);
+        mode = 'idle';
+        return;
+      }
       const dx = e.clientX - downX;
       const dy = e.clientY - downY;
       if (mode === 'pending') {

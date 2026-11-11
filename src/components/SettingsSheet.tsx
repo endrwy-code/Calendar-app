@@ -1,15 +1,27 @@
 import { useRef, useState } from 'react';
-import { Check, ChevronRight, Trash2 } from 'lucide-react';
+import { formatDistanceToNowStrict } from 'date-fns';
+import { Check, ChevronRight, Download, Link2, Send, Trash2, Upload } from 'lucide-react';
 import { useData, type BackupFile } from '../store/data';
 import { useUI } from '../store/ui';
 import { COLOR_KEYS, type ColorKey } from '../types';
-import { isTelegram, tg } from '../lib/telegram';
+import { isTelegram, openTelegramLink, tg } from '../lib/telegram';
+import { ALL_DAY_ALERTS, TIMED_ALERTS } from '../lib/reminders';
+import { buildIcs } from '../lib/ics';
+import { openIcsFiles, saveFile } from '../lib/files';
+import { connectTelegramChat, createFeed, deleteFeed, loginLink, signOut, useSync } from '../lib/sync';
+import { deviceTimeZone } from '../lib/tz';
+import { useMediaQuery } from '../lib/hooks';
 import { ActionSheet, Sheet } from './Sheet';
 import { Segmented } from './Segmented';
 import { nextTagColor } from './TagPicker';
 
 const hours = Array.from({ length: 25 }, (_, h) => h);
 const hh = (h: number) => `${String(h).padStart(2, '0')}:00`;
+/** Times offered for the morning summary: 05:30 to 10:00 */
+const AGENDA_TIMES = Array.from({ length: 10 }, (_, i) => {
+  const m = 330 + i * 30;
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+});
 
 export function SettingsSheet() {
   const open = useUI((s) => s.settingsOpen);
@@ -28,19 +40,47 @@ function SettingsInner({ onClose }: { onClose: () => void }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [showData, setShowData] = useState(false);
   const addColor = newColor ?? nextTagColor(data.calendars);
-  const [confirm, setConfirm] = useState<null | 'reset' | 'sample' | { deleteCal: string }>(null);
+  const [confirm, setConfirm] = useState<null | 'reset' | 'sample' | 'signout' | 'export' | { deleteCal: string }>(null);
   const [importText, setImportText] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const icsRef = useRef<HTMLInputElement>(null);
   const hasSample = data.events.some((e) => e.sample) || data.tasks.some((t) => t.sample);
+  const sync = useSync();
+  const server = sync.mode === 'ready';
+  const fine = useMediaQuery('(pointer: fine)');
+  const botName = sync.bot ? `@${sync.bot}` : 'your Daybook bot';
+  const [busy, setBusy] = useState(false);
+  const today = new Date().toISOString().slice(0, 10);
 
   const backupJson = () => JSON.stringify(data.exportBackup(), null, 2);
-  const download = () => {
-    const url = URL.createObjectURL(new Blob([backupJson()], { type: 'application/json' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `daybook-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const download = () => void saveFile(`daybook-backup-${today}.json`, backupJson(), 'application/json');
+
+  const exportEvents = (tagId: string | null) => {
+    const tag = tagId ? data.calendars.find((c) => c.id === tagId) : null;
+    const events = data.events.filter((e) => !e.sample && (!tagId || e.calendarId === tagId));
+    if (!events.length) return toast(tag ? `No events tagged ${tag.name}` : 'No events to export yet');
+    const text = buildIcs(events, { calendars: data.calendars, tz: deviceTimeZone(), settings: s, name: tag ? tag.name : 'Daybook' });
+    void saveFile(`${tag ? tag.name.toLowerCase().replace(/[^\w]+/g, '-') : 'daybook'}-${today}.ics`, text, 'text/calendar');
+  };
+
+  const connect = async () => {
+    setBusy(true);
+    const r = await connectTelegramChat();
+    setBusy(false);
+    if (r === 'ok') toast('Sent you a test message in Telegram');
+    else if (r === 'start-bot') {
+      toast(`Open ${botName} and press Start, then try again`);
+      if (sync.bot) openTelegramLink(`https://t.me/${sync.bot}`);
+    } else toast('Couldn’t reach the server');
+  };
+
+  const copyText = async (text: string, done: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(done);
+    } catch {
+      toast('Couldn’t reach the clipboard');
+    }
   };
   const copy = async () => {
     try {
@@ -201,7 +241,193 @@ function SettingsInner({ onClose }: { onClose: () => void }) {
             </select>
           </div>
         </div>
-        <p className="form-foot">“Add to calendar” suggests free times between these hours.</p>
+        <p className="form-foot">
+          “Add to calendar” suggests free times between these hours. Pinch the day or week to zoom in and out
+          {fine ? ' (or Ctrl + scroll, or the + and − keys)' : ''}.
+        </p>
+
+        <div className="group-label">Alerts</div>
+        {server ? (
+          <>
+            <div className="group rows">
+              <div className="row">
+                <Send size={20} strokeWidth={1.7} className="row-icon" />
+                <span className="row-main">Telegram messages</span>
+                <button
+                  className="switch"
+                  role="switch"
+                  aria-checked={s.telegramAlerts}
+                  aria-label="Telegram messages"
+                  onClick={() => {
+                    set({ telegramAlerts: !s.telegramAlerts });
+                    if (!s.telegramAlerts && !sync.chatOk) void connect();
+                  }}
+                />
+              </div>
+              {s.telegramAlerts && !sync.chatOk && (
+                <button className="row bold" onClick={connect} disabled={busy}>
+                  <span className="row-main">Let {botName} message you</span>
+                </button>
+              )}
+              <label className="row">
+                <span className="row-main">Events</span>
+                <select className="cell-select" value={String(s.alertDefault)} onChange={(e) => set({ alertDefault: e.target.value === 'null' ? null : Number(e.target.value) })}>
+                  {TIMED_ALERTS.map((o) => (
+                    <option key={String(o.value)} value={String(o.value)}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="row">
+                <span className="row-main">All-day events</span>
+                <select className="cell-select" value={String(s.allDayAlertDefault)} onChange={(e) => set({ allDayAlertDefault: e.target.value === 'null' ? null : Number(e.target.value) })}>
+                  {ALL_DAY_ALERTS.map((o) => (
+                    <option key={String(o.value)} value={String(o.value)}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="row">
+                <span className="row-main">When a planned to-do starts</span>
+                <button className="switch" role="switch" aria-checked={s.todoAlerts} aria-label="When a planned to-do starts" onClick={() => set({ todoAlerts: !s.todoAlerts })} />
+              </div>
+              <label className="row">
+                <span className="row-main">Morning summary</span>
+                <select className="cell-select" value={s.dailyAgenda ?? ''} onChange={(e) => set({ dailyAgenda: e.target.value || null })}>
+                  <option value="">Off</option>
+                  {[...new Set([...AGENDA_TIMES, ...(s.dailyAgenda ? [s.dailyAgenda] : [])])].sort().map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {sync.chatOk && s.telegramAlerts && (
+                <button className="row" onClick={connect} disabled={busy}>
+                  <span className="row-main">Send a test message</span>
+                </button>
+              )}
+            </div>
+            <p className="form-foot">
+              Alerts arrive as messages from {botName}. These are the defaults; any event can have its own alert. The morning summary lists the day’s events and planned to-dos.
+            </p>
+          </>
+        ) : (
+          <p className="form-foot">Alerts and a morning summary arrive as Telegram messages once Daybook is running on its server.</p>
+        )}
+
+        <div className="group-label">Import and export</div>
+        <div className="group rows">
+          <button className="row" onClick={() => icsRef.current?.click()}>
+            <Upload size={20} strokeWidth={1.7} className="row-icon" />
+            <span className="row-main">Import a calendar (.ics)</span>
+          </button>
+          <button className="row" onClick={() => setConfirm('export')}>
+            <Download size={20} strokeWidth={1.7} className="row-icon" />
+            <span className="row-main">Export events (.ics)</span>
+          </button>
+          {server &&
+            (sync.feedUrl ? (
+              <>
+                <div className="row top">
+                  <Link2 size={20} strokeWidth={1.7} className="row-icon" />
+                  <span className="row-main two">
+                    <span>Subscription link</span>
+                    <small className="feed-url">{sync.feedUrl}</small>
+                  </span>
+                </div>
+                <button className="row sub-action" onClick={() => copyText(sync.feedUrl!, 'Link copied')}>
+                  <span className="row-main">Copy link</span>
+                </button>
+                <button className="row sub-action danger" onClick={() => void deleteFeed().then(() => toast('Link turned off'))}>
+                  <span className="row-main">Turn off link</span>
+                </button>
+              </>
+            ) : (
+              <button
+                className="row"
+                onClick={async () => {
+                  if (await createFeed()) toast('Link ready');
+                  else toast('Couldn’t reach the server');
+                }}
+              >
+                <Link2 size={20} strokeWidth={1.7} className="row-icon" />
+                <span className="row-main">Show Daybook in another calendar app</span>
+              </button>
+            ))}
+        </div>
+        <p className="form-foot">
+          {fine ? 'You can also drop .ics files onto the window. ' : ''}
+          {server && sync.feedUrl
+            ? 'In Apple, Google or Outlook Calendar, choose “subscribe” or “add from URL” and paste the link. It updates by itself. Anyone with the link can see your events, so keep it private; turning it off stops it working.'
+            : 'Importing the same file again updates the events instead of adding them twice.'}
+        </p>
+        <input
+          ref={icsRef}
+          type="file"
+          accept=".ics,text/calendar"
+          multiple
+          hidden
+          onChange={(e) => {
+            const files = [...(e.target.files ?? [])];
+            e.target.value = '';
+            if (files.length) {
+              onClose();
+              void openIcsFiles(files);
+            }
+          }}
+        />
+
+        {sync.mode !== 'off' && sync.mode !== 'connecting' && (
+          <>
+            <div className="group-label">Account</div>
+            <div className="group rows">
+              {server && sync.user ? (
+                <>
+                  <div className="row">
+                    <span className="row-main two">
+                      <span>
+                        {sync.user.firstName}
+                        {sync.user.username ? <span className="muted"> · @{sync.user.username}</span> : null}
+                      </span>
+                      <small>
+                        {sync.offline
+                          ? 'Offline. Changes will sync when you’re back.'
+                          : sync.error
+                            ? sync.error
+                            : sync.syncing
+                              ? 'Syncing…'
+                              : sync.lastSync
+                                ? `Synced ${Date.now() - sync.lastSync < 60000 ? 'just now' : formatDistanceToNowStrict(sync.lastSync, { addSuffix: true })}`
+                                : 'Connected'}
+                      </small>
+                    </span>
+                  </div>
+                  <button className="row danger" onClick={() => setConfirm('signout')}>
+                    <span className="row-main">Sign out of this device</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="row bold"
+                  onClick={() => {
+                    const link = loginLink();
+                    if (link) openTelegramLink(link);
+                  }}
+                >
+                  <span className="row-main">Sign in with Telegram</span>
+                </button>
+              )}
+            </div>
+            {!server && (
+              <p className="form-foot">
+                {sync.error ? `${sync.error} ` : ''}Opens {botName} in Telegram, which sends you a sign-in link. Your calendar then syncs with your other devices.
+              </p>
+            )}
+          </>
+        )}
 
         <div className="group rows">
           <button className="row" onClick={() => setShowData((v) => !v)} aria-expanded={showData}>
@@ -260,7 +486,9 @@ function SettingsInner({ onClose }: { onClose: () => void }) {
         />
 
         <p className="form-foot center">
-          Everything stays on this device{isTelegram ? ' (in Telegram’s device storage)' : ''}. Nothing is sent to a server.
+          {server
+            ? 'Saved on this device and on your Daybook server.'
+            : `Everything stays on this device${isTelegram ? ' (in Telegram’s device storage)' : ''}. Nothing is sent to a server.`}
           <br />
           Daybook 0.3 · {isTelegram ? `Telegram (Bot API ${tg?.version}, ${tg?.platform})` : 'Web app'}
         </p>
@@ -274,10 +502,29 @@ function SettingsInner({ onClose }: { onClose: () => void }) {
           onCancel={() => setConfirm(null)}
         />
       )}
+      {confirm === 'export' && (
+        <ActionSheet
+          title="Export events"
+          message="Saves an .ics file that Apple, Google and Outlook Calendar can open."
+          choices={[
+            { label: 'All events', tone: 'bold', onSelect: () => (exportEvents(null), setConfirm(null)) },
+            ...data.calendars.map((c) => ({ label: `Only ${c.name}`, onSelect: () => (exportEvents(c.id), setConfirm(null)) })),
+          ]}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+      {confirm === 'signout' && (
+        <ActionSheet
+          title="Sign out of this device?"
+          message="This device’s copy is cleared. Everything stays on your server, and comes back when you sign in again."
+          choices={[{ label: 'Sign out', tone: 'danger', onSelect: () => (void signOut(), setConfirm(null)) }]}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
       {confirm === 'reset' && (
         <ActionSheet
           title="Erase everything?"
-          message="All events, to-dos, calendars and settings on this device will be deleted. This can’t be undone."
+          message={`All events, to-dos, tags and settings ${server ? 'on this device and on your server' : 'on this device'} will be deleted. This can’t be undone.`}
           choices={[{ label: 'Erase everything', tone: 'danger', onSelect: () => (data.resetAll(), setConfirm(null)) }]}
           onCancel={() => setConfirm(null)}
         />

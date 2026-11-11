@@ -26,6 +26,11 @@ export interface Recurrence {
   byWeekday?: number[];
   /** Inclusive last date, YYYY-MM-DD */
   until?: string | null;
+  /**
+   * Monthly rules only: repeat on the nth weekday of the month (1–5, or -1 for
+   * the last one) instead of on the same date. The weekday is byWeekday[0].
+   */
+  nth?: number | null;
 }
 
 export interface CalendarCategory {
@@ -33,6 +38,8 @@ export interface CalendarCategory {
   name: string;
   color: ColorKey;
   visible: boolean;
+  /** Set on every change, so syncing knows which copy is newest */
+  updatedAt?: number;
 }
 
 export interface CalEvent {
@@ -49,6 +56,14 @@ export interface CalEvent {
   recurrence?: Recurrence | null;
   /** Occurrence dates (YYYY-MM-DD) removed from a recurring series */
   exdates?: string[];
+  /**
+   * Alerts, in minutes before the start. Negative values are after the start,
+   * which all-day events use for "on the day at 09:00" (-540). Left out, the
+   * event follows the default alert in Settings; [] means no alert.
+   */
+  reminders?: number[];
+  /** UID from an imported .ics file, so importing the same file again updates instead of duplicating */
+  icsUid?: string;
   sample?: boolean;
   createdAt: number;
   updatedAt: number;
@@ -95,4 +110,19 @@ export interface Settings {
   dayStartHour: number;
   dayEndHour: number;
   calendarView: ViewMode;
+  /** Height of one hour in the day and week views (pinch to change). null = automatic. Kept per device. */
+  hourHeight: number | null;
+  /** Default alert for timed events, in minutes before; null = none */
+  alertDefault: number | null;
+  /** Default alert for all-day events (see CalEvent.reminders); null = none */
+  allDayAlertDefault: number | null;
+  /** Remind me when a to-do I put on the calendar is about to start */
+  todoAlerts: boolean;
+  /** Send a summary of the day at this time ("07:30"); null = off */
+  dailyAgenda: string | null;
+  /** Send alerts as Telegram messages (needs the Daybook server) */
+  telegramAlerts: boolean;
 }
+
+/** Settings that belong to one device and aren't synced. */
+export const DEVICE_SETTINGS = ['calendarView', 'hourHeight'] as const satisfies readonly (keyof Settings)[];

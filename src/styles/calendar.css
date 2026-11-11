@@ -275,6 +275,7 @@
 }
 .tg-canvas {
   position: relative;
+  height: calc(var(--hour-h) * 24);
   margin: 10px 0 24px;
 }
 .tg-canvas > .tg-vp {
@@ -300,7 +301,8 @@
   white-space: nowrap;
   transition: opacity 0.25s;
 }
-.tg-hour.hide {
+.tg-hour.hide,
+.tg[data-zoom='far'] .tg-hour.odd {
   opacity: 0;
 }
 .tg-nowlabel {
@@ -325,6 +327,15 @@
   grid-template-columns: repeat(var(--n), minmax(0, 1fr));
   background-image: linear-gradient(var(--grid) 1px, transparent 1px);
   background-size: 100% var(--hour-h);
+}
+/* Zoomed in: a fainter line at each half hour */
+.tg[data-zoom='close'] .tg-cols {
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(var(--grid-half) 1px, transparent 1px);
+  background-size:
+    100% var(--hour-h),
+    100% calc(var(--hour-h) / 2);
 }
 .tg-col {
   position: relative;

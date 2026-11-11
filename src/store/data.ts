@@ -1,23 +1,18 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { addDays } from 'date-fns';
-import type { CalEvent, CalendarCategory, ID, Settings, Subtask, Task, TaskStatus } from '../types';
+import { DEVICE_SETTINGS, type CalEvent, type CalendarCategory, type ID, type Settings, type Subtask, type Task, type TaskStatus } from '../types';
 import { uid } from '../lib/id';
 import { DEFAULT_CALENDARS, buildSampleData } from '../lib/sample';
 import { appStorage } from '../lib/telegram';
 import { parseLocal, toDateKey, toLocalISO } from '../lib/dates';
 import { eventBounds } from '../lib/recurrence';
+import { DEFAULT_SETTINGS } from '../lib/defaults';
 
-export const DEFAULT_SETTINGS: Settings = {
-  theme: 'system',
-  weekStartsOn: 1,
-  timeFormat: '24h',
-  showWeekNumbers: false,
-  defaultEventMinutes: 60,
-  dayStartHour: 8,
-  dayEndHour: 22,
-  calendarView: 'week',
-};
+export { DEFAULT_SETTINGS };
+
+/** An event read from an .ics file, ready to add (see lib/ics.ts) */
+export type ImportInput = Omit<EventInput, 'calendarId'> & { icsUid: string; categories?: string[] };
 
 export type EventInput = Omit<CalEvent, 'id' | 'createdAt' | 'updatedAt'>;
 export type TaskInput = Partial<Omit<Task, 'id' | 'createdAt' | 'updatedAt'>> & { title: string };
@@ -37,6 +32,8 @@ interface DataState {
   events: CalEvent[];
   tasks: Task[];
   settings: Settings;
+  /** When a synced setting last changed (device-only ones like zoom don't count) */
+  settingsUpdatedAt: number;
   seeded: boolean;
   hydrated: boolean;
 
@@ -48,6 +45,12 @@ interface DataState {
   skipOccurrence(id: ID, dateKey: string): void;
   /** Ends a recurring series before the given occurrence */
   endSeriesBefore(id: ID, dateKey: string): void;
+  /**
+   * Adds events from an .ics file. Events imported before (same UID) are
+   * updated in place. Events whose category matches one of your tags get that
+   * tag; the rest get `calendarId`. Returns the previous events, for Undo.
+   */
+  importEvents(items: ImportInput[], calendarId: ID): { added: number; updated: number; previous: CalEvent[] };
 
   // tasks
   addTask(input: TaskInput): Task;
@@ -84,6 +87,7 @@ export const useData = create<DataState>()(
       events: [],
       tasks: [],
       settings: DEFAULT_SETTINGS,
+      settingsUpdatedAt: 0,
       seeded: false,
       hydrated: false,
 
@@ -118,6 +122,29 @@ export const useData = create<DataState>()(
           return;
         }
         get().updateEvent(id, { recurrence: { ...ev.recurrence, until } });
+      },
+      importEvents(items, calendarId) {
+        const previous = get().events;
+        const byUid = new Map(previous.filter((e) => e.icsUid).map((e) => [e.icsUid!, e]));
+        const tagByName = new Map(get().calendars.map((c) => [c.name.trim().toLowerCase(), c.id]));
+        const t = now();
+        let added = 0;
+        let updated = 0;
+        const next = [...previous];
+        for (const { categories, ...item } of items) {
+          const tag = categories?.map((c) => tagByName.get(c.trim().toLowerCase())).find(Boolean) ?? calendarId;
+          const existing = byUid.get(item.icsUid);
+          if (existing) {
+            const i = next.indexOf(existing);
+            next[i] = { ...existing, ...item, calendarId: tag, updatedAt: t };
+            updated++;
+          } else {
+            next.push({ ...item, calendarId: tag, id: uid(), createdAt: t, updatedAt: t });
+            added++;
+          }
+        }
+        set({ events: next });
+        return { added, updated, previous };
       },
 
       addTask(input) {
@@ -182,12 +209,12 @@ export const useData = create<DataState>()(
       },
 
       addCalendar(input) {
-        const c: CalendarCategory = { ...input, id: uid(), visible: true };
+        const c: CalendarCategory = { ...input, id: uid(), visible: true, updatedAt: now() };
         set((s) => ({ calendars: [...s.calendars, c] }));
         return c;
       },
       updateCalendar(id, patch) {
-        set((s) => ({ calendars: s.calendars.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
+        set((s) => ({ calendars: s.calendars.map((c) => (c.id === id ? { ...c, ...patch, updatedAt: now() } : c)) }));
       },
       deleteCalendar(id) {
         set((s) => {
@@ -202,12 +229,13 @@ export const useData = create<DataState>()(
       },
       toggleCalendar(id) {
         set((s) => ({
-          calendars: s.calendars.map((c) => (c.id === id ? { ...c, visible: !c.visible } : c)),
+          calendars: s.calendars.map((c) => (c.id === id ? { ...c, visible: !c.visible, updatedAt: now() } : c)),
         }));
       },
 
       updateSettings(patch) {
-        set((s) => ({ settings: { ...s.settings, ...patch } }));
+        const synced = Object.keys(patch).some((k) => !(DEVICE_SETTINGS as readonly string[]).includes(k));
+        set((s) => ({ settings: { ...s.settings, ...patch }, ...(synced ? { settingsUpdatedAt: now() } : {}) }));
       },
       seedIfNeeded() {
         if (get().seeded) return;
@@ -233,6 +261,7 @@ export const useData = create<DataState>()(
           events: data.events ?? [],
           tasks: data.tasks ?? [],
           settings: { ...DEFAULT_SETTINGS, ...data.settings },
+          settingsUpdatedAt: now(),
           seeded: true,
         });
       },
@@ -254,6 +283,7 @@ export const useData = create<DataState>()(
           events: [],
           tasks: [],
           settings: DEFAULT_SETTINGS,
+          settingsUpdatedAt: 0,
           seeded: true,
         });
       },
@@ -267,6 +297,7 @@ export const useData = create<DataState>()(
         events: s.events,
         tasks: s.tasks,
         settings: s.settings,
+        settingsUpdatedAt: s.settingsUpdatedAt,
         seeded: s.seeded,
       }),
       merge: (persisted, current) => {

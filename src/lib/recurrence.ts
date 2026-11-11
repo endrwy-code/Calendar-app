@@ -39,6 +39,32 @@ function shiftTo(base: Date, day: Date): Date {
   );
 }
 
+/** The nth (1–5, or -1 = last) given weekday of a month, or null if that month has none. */
+export function nthWeekdayOfMonth(year: number, month: number, weekday: number, nth: number): Date | null {
+  if (nth < 0) {
+    const last = new Date(year, month + 1, 0);
+    return new Date(year, month, last.getDate() - ((last.getDay() - weekday + 7) % 7));
+  }
+  const first = new Date(year, month, 1);
+  const day = 1 + ((weekday - first.getDay() + 7) % 7) + (nth - 1) * 7;
+  const d = new Date(year, month, day);
+  return d.getMonth() === month ? d : null;
+}
+
+/** Which week of its month a date falls in, as used by "nth weekday" rules: 1–4, or -1 for a 5th (last). */
+export function nthOfMonth(d: Date): number {
+  const n = Math.ceil(d.getDate() / 7);
+  return n >= 5 ? -1 : n;
+}
+
+export const ORDINAL: Record<string, string> = { '1': '1st', '2': '2nd', '3': '3rd', '4': '4th', '5': '5th', '-1': 'last' };
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** "the 2nd Tuesday", "the last Friday" */
+export function describeNth(nth: number, weekday: number): string {
+  return `the ${ORDINAL[String(nth)] ?? `${nth}th`} ${DAY_NAMES[weekday]}`;
+}
+
 /** Generates candidate start dates for a recurring event, roughly from `from` onwards. */
 function* candidates(ev: CalEvent, base: Date, from: Date): Generator<Date> {
   const r = ev.recurrence!;
@@ -67,8 +93,19 @@ function* candidates(ev: CalEvent, base: Date, from: Date): Generator<Date> {
       const monthsDiff =
         (from.getFullYear() - base.getFullYear()) * 12 + (from.getMonth() - base.getMonth());
       let k = Math.max(0, Math.floor(monthsDiff / interval) * interval);
+      const nth = r.nth && r.byWeekday?.length ? r.nth : null;
       for (;;) {
         const d = addMonths(new Date(base.getFullYear(), base.getMonth(), 1), k);
+        if (nth) {
+          // "2nd Tuesday", "last Friday": months without a 5th one are skipped
+          const day = nthWeekdayOfMonth(d.getFullYear(), d.getMonth(), r.byWeekday![0], nth);
+          if (day) {
+            const cand = shiftTo(base, day);
+            if (cand.getTime() >= base.getTime()) yield cand;
+          }
+          k += interval;
+          continue;
+        }
         const cand = new Date(
           d.getFullYear(),
           d.getMonth(),
@@ -152,6 +189,7 @@ export function describeRecurrence(ev: CalEvent): string | null {
     }
     case 'monthly':
       s = n === 1 ? 'Monthly' : `Every ${n} months`;
+      if (r.nth && r.byWeekday?.length) s += ` on ${describeNth(r.nth, r.byWeekday[0])}`;
       break;
     case 'yearly':
       s = n === 1 ? 'Yearly' : `Every ${n} years`;

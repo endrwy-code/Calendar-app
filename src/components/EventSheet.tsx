@@ -1,11 +1,17 @@
 import { useState } from 'react';
 import { addDays, addMinutes, differenceInMinutes, format, isSameDay } from 'date-fns';
-import { AlignLeft, ChevronRight, Clock, MapPin, Repeat as RepeatIcon } from 'lucide-react';
-import type { CalEvent, CalendarCategory, Recurrence } from '../types';
+import { AlignLeft, Bell, ChevronRight, Clock, Copy, Download, MapPin, Repeat as RepeatIcon } from 'lucide-react';
+import type { CalEvent, CalendarCategory, Recurrence, Settings } from '../types';
 import { useData, shiftedTimes } from '../store/data';
 import { useUI, type EventEditorState } from '../store/ui';
 import { fmtDuration, fmtTime, parseLocal, toDateKey, toLocalISO, todayKey } from '../lib/dates';
-import { eventBounds } from '../lib/recurrence';
+import { eventBounds, nthOfMonth, ORDINAL } from '../lib/recurrence';
+import { ALL_DAY_ALERTS, TIMED_ALERTS, alertLabel, eventAlerts, type AlertOption } from '../lib/reminders';
+import { buildIcs, icsFileName } from '../lib/ics';
+import { saveFile } from '../lib/files';
+import { useSync } from '../lib/sync';
+import { deviceTimeZone } from '../lib/tz';
+import { Segmented } from './Segmented';
 import { scheduleTask } from '../lib/actions';
 import { haptic } from '../lib/telegram';
 import { ActionSheet, Sheet, type Choice } from './Sheet';
@@ -29,6 +35,12 @@ interface Form {
   interval: number;
   byWeekday: number[];
   until: string;
+  /** Monthly: on the same date, or on the same weekday of the month ("2nd Wednesday") */
+  monthlyBy: 'date' | 'weekday';
+  alert1: number | null;
+  alert2: number | null;
+  /** The event follows the default alert from Settings (until you pick one) */
+  alertsDefault: boolean;
 }
 
 const WEEKDAYS = [
@@ -57,11 +69,27 @@ function describeRepeat(f: Form): string {
     const order = [1, 2, 3, 4, 5, 6, 0];
     text += ` on ${order.filter((d) => f.byWeekday.includes(d)).map((d) => DAY_SHORT[d]).join(', ')}`;
   }
+  if (f.repeat === 'monthly' && f.monthlyBy === 'weekday') text += ` on ${monthlyWeekdayLabel(f.startDate)}`;
   if (f.until) text += ` until ${format(parseLocal(f.until), 'd MMM')}`;
   return text;
 }
 
 const timeOf = (d: Date) => toLocalISO(d).slice(11);
+
+/** "the 2nd Wed" for the weekday of the month a date falls on */
+function monthlyWeekdayLabel(dateKey: string): string {
+  const d = parseLocal(dateKey);
+  return `the ${ORDINAL[String(nthOfMonth(d))]} ${DAY_SHORT[d.getDay()]}`;
+}
+
+/** Alert choices for the form, including an unusual value from an imported event. */
+function alertChoices(allDay: boolean, current: number | null): AlertOption[] {
+  const list = allDay ? ALL_DAY_ALERTS : TIMED_ALERTS;
+  if (current === null || list.some((o) => o.value === current)) return list;
+  return [...list, { value: current, label: alertLabel(current, allDay) }];
+}
+
+const defaultAlert = (s: Settings, allDay: boolean) => (allDay ? s.allDayAlertDefault : s.alertDefault);
 
 function nextHour(dateKey: string): Date {
   if (dateKey !== todayKey()) return parseLocal(`${dateKey}T09:00`);
@@ -71,8 +99,10 @@ function nextHour(dateKey: string): Date {
   return d;
 }
 
-function formFrom(editor: NonNullable<EventEditorState>, ev: CalEvent | undefined, cursor: string, defaultMin: number, firstCal: string): Form {
+function formFrom(editor: NonNullable<EventEditorState>, ev: CalEvent | undefined, cursor: string, settings: Settings, firstCal: string): Form {
+  const defaultMin = settings.defaultEventMinutes;
   if (ev) {
+    const alerts = eventAlerts(ev, settings);
     const occStart = editor.occurrence ? parseLocal(editor.occurrence.start) : eventBounds(ev).start;
     const occEnd = editor.occurrence ? parseLocal(editor.occurrence.end) : eventBounds(ev).end;
     const r = ev.recurrence;
@@ -95,12 +125,17 @@ function formFrom(editor: NonNullable<EventEditorState>, ev: CalEvent | undefine
       interval: r?.interval ?? 1,
       byWeekday: r?.byWeekday?.length ? r.byWeekday : [occStart.getDay()],
       until: r?.until ?? '',
+      monthlyBy: r?.freq === 'monthly' && r.nth ? 'weekday' : 'date',
+      alert1: alerts[0] ?? null,
+      alert2: alerts[1] ?? null,
+      alertsDefault: ev.reminders === undefined,
     };
   }
   const d = editor.draft ?? {};
   const allDay = !!d.allDay;
   const start = d.start ? parseLocal(d.start) : nextHour(cursor);
   const end = d.end && !allDay ? parseLocal(d.end) : addMinutes(start, defaultMin);
+  const alerts = d.reminders ?? [defaultAlert(settings, allDay)].filter((x): x is number => x !== null);
   return {
     title: d.title ?? '',
     calendarId: d.calendarId ?? firstCal,
@@ -109,12 +144,16 @@ function formFrom(editor: NonNullable<EventEditorState>, ev: CalEvent | undefine
     startTime: timeOf(start),
     endDate: allDay && d.end ? d.end.slice(0, 10) : toDateKey(end),
     endTime: timeOf(end),
-    location: '',
-    notes: '',
+    location: d.location ?? '',
+    notes: d.notes ?? '',
     repeat: 'none',
     interval: 1,
     byWeekday: [start.getDay()],
     until: '',
+    monthlyBy: 'date',
+    alert1: alerts[0] ?? null,
+    alert2: alerts[1] ?? null,
+    alertsDefault: d.reminders === undefined,
   };
 }
 
@@ -136,9 +175,11 @@ function EventInner({ editor }: { editor: NonNullable<EventEditorState> }) {
   const cursor = useUI((s) => s.cursor);
   const existing = editor.id ? events.find((e) => e.id === editor.id) : undefined;
   const isNew = !existing;
-  const fromSlot = isNew && !!editor.draft?.start && !editor.draft.allDay;
+  const fromSlot = isNew && !!editor.draft?.start && !editor.draft.allDay && !editor.draft.title;
+  // Alerts are delivered by the Daybook server, so they're only offered once it's connected.
+  const alertsOn = useSync((s) => s.mode === 'ready');
 
-  const [f, setF] = useState<Form>(() => formFrom(editor, existing, cursor, settings.defaultEventMinutes, calendars[0]?.id ?? 'personal'));
+  const [f, setF] = useState<Form>(() => formFrom(editor, existing, cursor, settings, calendars[0]?.id ?? 'personal'));
   const [choice, setChoice] = useState<{ title: string; message?: string; choices: Choice[] } | null>(null);
   // Tapping an event shows it first; editing is one tap away. New events open straight into the form.
   const [mode, setMode] = useState<'view' | 'edit'>(existing ? 'view' : 'edit');
@@ -169,7 +210,15 @@ function EventInner({ editor }: { editor: NonNullable<EventEditorState> }) {
       };
       if (f.repeat === 'weekdays') recurrence.byWeekday = [1, 2, 3, 4, 5];
       if (f.repeat === 'weekly') recurrence.byWeekday = f.byWeekday.length ? f.byWeekday : [parseLocal(start).getDay()];
+      if (f.repeat === 'monthly' && f.monthlyBy === 'weekday') {
+        const sd = parseLocal(start);
+        recurrence.byWeekday = [sd.getDay()];
+        recurrence.nth = nthOfMonth(sd);
+      }
     }
+    const reminders = f.alertsDefault
+      ? undefined
+      : [...new Set([f.alert1, f.alert2].filter((x): x is number => x !== null))].sort((a, b) => a - b);
     return {
       title: f.title.trim() || 'New event',
       calendarId: f.calendarId,
@@ -180,8 +229,40 @@ function EventInner({ editor }: { editor: NonNullable<EventEditorState> }) {
       notes: f.notes.trim(),
       recurrence,
       exdates: existing?.exdates ?? [],
+      reminders,
     };
   };
+
+  const duplicate = () => {
+    haptic.tap();
+    useUI.getState().openEvent({
+      draft: {
+        title: f.title,
+        calendarId: f.calendarId,
+        allDay: f.allDay,
+        start: f.allDay ? f.startDate : `${f.startDate}T${f.startTime}`,
+        end: f.allDay ? f.endDate : `${f.endDate}T${f.endTime}`,
+        location: f.location,
+        notes: f.notes,
+        reminders: f.alertsDefault ? undefined : build().reminders,
+      },
+    });
+  };
+
+  const exportIcs = () => {
+    if (!existing) return;
+    void saveFile(icsFileName(existing.title), buildIcs([existing], { calendars, tz: deviceTimeZone() }), 'text/calendar');
+  };
+
+  const setAlert = (which: 1 | 2, raw: string) => {
+    const v = raw === 'null' ? null : Number(raw);
+    if (which === 1) set({ alert1: v, ...(v === null ? { alert2: null } : {}), alertsDefault: false });
+    else set({ alert2: v, alertsDefault: false });
+  };
+  const alertText = [f.alert1, f.alert2]
+    .filter((x): x is number => x !== null)
+    .map((m) => alertLabel(m, f.allDay))
+    .join(', ');
 
   const save = (close: () => void) => {
     const built = build();
@@ -298,8 +379,14 @@ function EventInner({ editor }: { editor: NonNullable<EventEditorState> }) {
         {(close) => (
           <div className="form detail">
             <EventSummary f={f} tag={tag} timeFormat={tf} />
-            {(f.location || f.notes) && (
+            {(f.location || f.notes || (alertsOn && alertText)) && (
               <div className="group rows">
+                {alertsOn && alertText && (
+                  <div className="row">
+                    <Bell size={20} strokeWidth={1.7} className="row-icon" />
+                    <span className="row-main">{alertText}</span>
+                  </div>
+                )}
                 {f.location && (
                   <div className="row">
                     <MapPin size={20} strokeWidth={1.7} className="row-icon" />
@@ -314,6 +401,16 @@ function EventInner({ editor }: { editor: NonNullable<EventEditorState> }) {
                 )}
               </div>
             )}
+            <div className="group rows">
+              <button className="row" onClick={duplicate}>
+                <Copy size={20} strokeWidth={1.7} className="row-icon" />
+                <span className="row-main">Duplicate</span>
+              </button>
+              <button className="row" onClick={exportIcs}>
+                <Download size={20} strokeWidth={1.7} className="row-icon" />
+                <span className="row-main">Export as .ics</span>
+              </button>
+            </div>
             <button className="quiet-danger" onClick={() => remove(close)}>
               Delete event
             </button>
@@ -331,7 +428,7 @@ function EventInner({ editor }: { editor: NonNullable<EventEditorState> }) {
       title={isNew ? 'New event' : 'Edit event'}
       left={(close) => (
         <button className="text-btn" onClick={existing ? () => {
-          setF(formFrom(editor, existing, cursor, settings.defaultEventMinutes, calendars[0]?.id ?? 'personal'));
+          setF(formFrom(editor, existing, cursor, settings, calendars[0]?.id ?? 'personal'));
           setMode('view');
         } : close}>
           Cancel
@@ -362,7 +459,17 @@ function EventInner({ editor }: { editor: NonNullable<EventEditorState> }) {
             <div className="row">
               <Clock size={20} strokeWidth={1.7} className="row-icon" />
               <span className="row-main">All day</span>
-              <button className="switch" role="switch" aria-checked={f.allDay} aria-label="All day" onClick={() => set({ allDay: !f.allDay })} />
+              <button
+                className="switch"
+                role="switch"
+                aria-checked={f.allDay}
+                aria-label="All day"
+                onClick={() => {
+                  // Timed and all-day alerts mean different things, so switching starts from the default.
+                  const allDay = !f.allDay;
+                  set({ allDay, alert1: defaultAlert(settings, allDay), alert2: null, alertsDefault: true });
+                }}
+              />
             </div>
             <div className="row sub">
               <DateField
@@ -418,6 +525,20 @@ function EventInner({ editor }: { editor: NonNullable<EventEditorState> }) {
                 </div>
               </div>
             )}
+            {f.repeat === 'monthly' && (
+              <div className="row sub">
+                <Segmented
+                  className="full"
+                  label="Repeat on"
+                  value={f.monthlyBy}
+                  onChange={(monthlyBy) => set({ monthlyBy })}
+                  options={[
+                    { value: 'date', label: `On day ${parseLocal(f.startDate).getDate()}` },
+                    { value: 'weekday', label: `On ${monthlyWeekdayLabel(f.startDate)}` },
+                  ]}
+                />
+              </div>
+            )}
             {f.repeat !== 'none' && f.repeat !== 'weekdays' && (
               <label className="row sub">
                 <span className="row-main">Every</span>
@@ -451,6 +572,31 @@ function EventInner({ editor }: { editor: NonNullable<EventEditorState> }) {
                   </button>
                 )}
               </div>
+            )}
+            {alertsOn && (
+              <label className="row">
+                <Bell size={20} strokeWidth={1.7} className="row-icon" />
+                <span className="row-main">Alert</span>
+                <select className="cell-select" value={String(f.alert1)} onChange={(e) => setAlert(1, e.target.value)}>
+                  {alertChoices(f.allDay, f.alert1).map((o) => (
+                    <option key={String(o.value)} value={String(o.value)}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {alertsOn && f.alert1 !== null && (
+              <label className="row sub">
+                <span className="row-main">Second alert</span>
+                <select className="cell-select" value={String(f.alert2)} onChange={(e) => setAlert(2, e.target.value)}>
+                  {alertChoices(f.allDay, f.alert2).map((o) => (
+                    <option key={String(o.value)} value={String(o.value)}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
           </div>
 
