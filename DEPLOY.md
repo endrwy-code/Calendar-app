@@ -26,7 +26,9 @@ It needs no other services: the database is built into Node.
 2. **Somewhere to run a container all the time**, with a disk that's kept and an
    https address. Pick one:
    - **[Railway](https://railway.com)**: the easiest. No server to look after; it
-     builds from your GitHub repo. A few dollars a month (check their current pricing).
+     builds from your GitHub repo. Its Free plan gives $1 of usage a month, and
+     Daybook is small enough that it should fit (see Option A). Otherwise a few
+     dollars a month.
    - **A small VPS** (any Ubuntu server from Hetzner, DigitalOcean, Vultr…): the
      cheapest and you're in full control, but you look after the machine.
    - **Google Cloud's free server**: a small VPS that's free within Google's
@@ -52,12 +54,25 @@ It needs no other services: the database is built into Node.
    | `ALLOWED_USERS` | your Telegram username, e.g. `@yourname` |
    | `DEFAULT_TZ` | your time zone, e.g. `Asia/Singapore` |
    | `RAILWAY_RUN_UID` | `0` (Railway's volumes belong to root; this lets Daybook write to it) |
+   | `ANTHROPIC_API_KEY` | optional: your Claude Console key, for plans from forwarded messages |
+   | `AI_MODEL` | optional: e.g. `claude-haiku-5-5`, the cheapest (default `claude-opus-5-5`) |
 
 5. Let it redeploy, then open `https://<your address>/api/health`. You should see
    `{"app":"daybook","ok":true,"bot":"your_bot_name"}`. If `bot` is `null`, the
    token is wrong (the deploy logs say so).
 
 To update later, push to the branch; Railway rebuilds and redeploys.
+
+**On Railway's Free plan.** New accounts start with a trial, then move to the
+Free plan: $0 a month with $1 of usage. Railway bills for the memory and CPU a
+service actually uses ($10 per GB of memory a month, $20 per vCPU a month, at
+the time of writing). Daybook uses about 60 MB of memory and almost no CPU
+while it waits, which comes to roughly 70 cents a month, so it should fit. It's
+close, though: a few days after you deploy, check the project's **Usage** page.
+Railway doesn't say what happens to a Free service once the month's credit runs
+out. It may stop until the next month. Your data stays on the volume, and the
+app keeps working on each device in the meantime; it syncs again when the
+server is back.
 
 ## Option B: your own server (VPS)
 
