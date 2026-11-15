@@ -29,6 +29,8 @@ It needs no other services: the database is built into Node.
      builds from your GitHub repo. A few dollars a month (check their current pricing).
    - **A small VPS** (any Ubuntu server from Hetzner, DigitalOcean, Vultr…): the
      cheapest and you're in full control, but you look after the machine.
+   - **Google Cloud's free server**: a small VPS that's free within Google's
+     allowance (one server, in the US). A few extra steps; see Option C.
 3. **Your Telegram username** (or numeric id), so only you can use your server.
 
 ## Option A: Railway
@@ -90,6 +92,70 @@ To update later:
 ```bash
 git pull && docker compose up -d --build
 ```
+
+## Option C: Google Cloud's free server
+
+Google Cloud gives one small server a month for free (an `e2-micro`: 1 GB of
+memory and a 30 GB disk), which is enough for Daybook. It's a VPS, so after the
+Google-specific steps below you carry on with Option B. Google can change what's
+free; check [their free tier page](https://docs.cloud.google.com/free/docs/free-cloud-features)
+before you start.
+
+1. **Sign up** at [cloud.google.com/free](https://cloud.google.com/free) with
+   your Google account. It asks for a card and starts a 90-day trial with credit.
+2. **Keep it running after the trial.** When a trial ends, Google stops
+   everything in it. In **Billing**, choose **Upgrade** (*Activate full
+   account*). The free allowance carries on, and you only pay for what's
+   outside it.
+3. **Set a budget alert** so a surprise charge can't grow: **Billing → Budgets &
+   alerts → Create budget**, a small amount (like 1 in your currency), with email
+   alerts.
+4. **Create the server**: **Compute Engine → VM instances → Create instance**
+   (turn on the Compute Engine API if it asks). Change only these:
+   - **Region**: `us-west1` (Oregon), `us-central1` (Iowa) or `us-east1` (South
+     Carolina). Only these three are free. Oregon is the closest to Asia.
+   - **Machine type**: `e2-micro`.
+   - **Boot disk** (*OS and storage → Change*): Ubuntu 24.04 LTS (x86/64), disk
+     type **Standard persistent disk**, size **30 GB**. The default (Balanced)
+     disk isn't free.
+   - **Firewall** (*Networking*): tick **Allow HTTP traffic** and **Allow HTTPS
+     traffic**.
+
+   Click **Create** and note the server's **External IP**.
+5. **Open a terminal on it**: click **SSH** next to the server. Add 2 GB of swap,
+   because 1 GB of memory is tight while the app builds:
+
+   ```bash
+   sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile && echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+   ```
+
+6. **Install Docker** with Docker's install script, and let your user run it:
+
+   ```bash
+   curl -fsSL https://get.docker.com | sudo sh
+   ```
+
+   ```bash
+   sudo usermod -aG docker $USER
+   ```
+
+   Close the SSH window and open it again.
+7. Carry on with **Option B from step 2**. The firewall (B's step 3) is already
+   done. For the address, use `<external-ip-with-dashes>.sslip.io`. The first
+   build takes several minutes on this small server.
+
+Good to know:
+
+- Your address is tied to the server's external IP. A restart (`sudo reboot`)
+  keeps it, but **Stop** then **Start** in the console gives a new one, and then
+  `APP_URL`, `DOMAIN` and the Mini App URL in BotFather all need changing. To
+  keep the IP for good, promote it to a static address (**VPC network → IP
+  addresses**).
+- Google charges for public IPv4 addresses, and its pages don't say clearly
+  whether the free allowance covers the one on this server. Your budget alert
+  will tell you. If it isn't covered, it's a few US dollars a month.
+- 1 GB a month of outbound traffic is free. That's plenty for one person
+  (photos you forward to Claude count towards it).
 
 ## Point Telegram at it
 
