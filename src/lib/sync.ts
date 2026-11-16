@@ -241,6 +241,8 @@ function applyRemote(changes: Change[]) {
 
 let running = false;
 let again = false;
+/** Changes sent per request */
+const UPLOAD_PAGE = 200;
 
 export async function syncNow(): Promise<void> {
   const st = useSync.getState();
@@ -270,7 +272,12 @@ export async function syncNow(): Promise<void> {
         changes.push({ kind: key.slice(0, i) as Kind, id: key.slice(i + 1), data: null, updatedAt: Date.now() });
         sent.set(key, null);
       }
-      const res = await api<{ rev: number; reset?: boolean; changes: Change[] }>('sync', {
+      // Big uploads (a calendar import) go up in parts, so each request stays small.
+      if (changes.length > UPLOAD_PAGE) {
+        for (const c of changes.splice(UPLOAD_PAGE)) sent.delete(`${c.kind}:${c.id}`);
+        again = true;
+      }
+      const res = await api<{ rev: number; reset?: boolean; more?: boolean; changes: Change[] }>('sync', {
         body: { since: persisted.rev, tz: deviceTimeZone(), changes },
       });
       if (res.reset) {
@@ -287,6 +294,8 @@ export async function syncNow(): Promise<void> {
       applyRemote(res.changes);
       persisted.rev = res.rev;
       savePersisted();
+      // The server sends long histories in parts too.
+      if (res.more) again = true;
       useSync.setState({ lastSync: Date.now(), offline: false, error: null });
     } while (again);
   } catch (e) {

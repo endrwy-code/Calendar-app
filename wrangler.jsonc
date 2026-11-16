@@ -1,0 +1,43 @@
+// Daybook on Cloudflare Workers. Steps: DEPLOY.md, "Option D: Cloudflare".
+// Secrets and settings (BOT_TOKEN, ALLOWED_USERS, …) are set in the Cloudflare
+// dashboard or with `npx wrangler secret put`, never in this file.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "daybook",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-01",
+
+  // The address is https://daybook.<your-subdomain>.workers.dev. Version
+  // preview links are off, so the bot only ever learns the real address.
+  "workers_dev": true,
+  "preview_urls": false,
+
+  // Keep the variables you set in the dashboard when a new version deploys.
+  "keep_vars": true,
+
+  // `wrangler deploy` (and Cloudflare's Git builds) build the app first.
+  "build": { "command": "npm run build" },
+
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // Any page that isn't a file gets the app (index.html), like the Node server.
+    "not_found_handling": "single-page-application",
+    // Only the API runs code; the app's files are served straight from Cloudflare.
+    "run_worker_first": ["/api", "/api/*"]
+  },
+
+  // One Durable Object with its own SQLite database holds everyone's calendar.
+  "durable_objects": {
+    "bindings": [{ "name": "DAYBOOK", "class_name": "Daybook" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Daybook"] }],
+
+  // Alerts and the morning summary: checked once a minute.
+  "triggers": { "crons": ["* * * * *"] },
+
+  // Daybook's own messages in the dashboard (Workers → daybook → Logs); it never
+  // logs tokens or keys. Cloudflare's automatic per-request logs are off: they
+  // would record each request's address, and calendar links carry a secret in theirs.
+  "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": false } }
+}

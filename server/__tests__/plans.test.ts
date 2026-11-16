@@ -4,6 +4,7 @@ import { PlanReader, ClaudeError, type ReadContext } from '../claude';
 import { Bot } from '../bot';
 import { loadConfig } from '../config';
 import { Store } from '../store';
+import { NodeSql } from '../sqlite-node';
 import { createApp } from '../http';
 import { checkInitData } from '../auth';
 import type { BotApi, TgUpdate } from '../telegram';
@@ -151,7 +152,7 @@ describe('plans in the chat', () => {
     revisions = [];
     msgId = 0;
     nextItems = [plan({}), plan({ kind: 'todo', title: 'Bring consent form', startTime: null, endTime: null, location: null })];
-    store = new Store(':memory:');
+    store = new Store(new NodeSql(':memory:'));
     bot = new Bot(fakeApi, store, cfg, fakeReader, 0);
     store.upsertUser({ id: 9, firstName: 'Kim', username: null });
     // The app uploads your tags on its first sync
@@ -248,7 +249,7 @@ describe('plans in the chat', () => {
     const params = new URLSearchParams({ auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id: 9, first_name: 'Kim' }) });
     const check = [...params.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => `${k}=${v}`).join('\n');
     params.set('hash', createHmac('sha256', createHmac('sha256', 'WebAppData').update(token).digest()).update(check).digest('hex'));
-    expect(checkInitData(params.toString(), token)?.id).toBe(9);
+    expect((await checkInitData(params.toString(), token))?.id).toBe(9);
 
     const server = createApp({ store, cfg: { ...cfg, botToken: token, trustProxy: false }, bot });
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));

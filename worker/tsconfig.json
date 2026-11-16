@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    // Cloudflare's runtime only, no Node or browser types: this also checks
+    // that the server code the Worker shares uses nothing Node-specific.
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": ["./**/*.ts"]
+}

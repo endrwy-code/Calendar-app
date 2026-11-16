@@ -8,6 +8,7 @@ import type { Server } from 'node:http';
 import { checkInitData } from '../auth';
 import { loadConfig, type Config } from '../config';
 import { Store, type Change } from '../store';
+import { NodeSql } from '../sqlite-node';
 import { createApp } from '../http';
 import { Notifier } from '../notify';
 import { Bot, type Messenger } from '../bot';
@@ -51,27 +52,27 @@ const ev = (p: Partial<CalEvent>): CalEvent => ({
 describe('checkInitData', () => {
   const alice = { id: 42, first_name: 'Alice', username: 'alice' };
 
-  it('accepts launch data signed with the bot token', () => {
-    expect(checkInitData(initData(alice), BOT_TOKEN)).toEqual({ id: 42, firstName: 'Alice', username: 'alice' });
+  it('accepts launch data signed with the bot token', async () => {
+    expect(await checkInitData(initData(alice), BOT_TOKEN)).toEqual({ id: 42, firstName: 'Alice', username: 'alice' });
   });
 
-  it('accepts data that includes the newer signature field', () => {
-    expect(checkInitData(initData(alice, { extra: { signature: 'abc' } }), BOT_TOKEN)?.id).toBe(42);
+  it('accepts data that includes the newer signature field', async () => {
+    expect((await checkInitData(initData(alice, { extra: { signature: 'abc' } }), BOT_TOKEN))?.id).toBe(42);
   });
 
-  it('rejects tampered, foreign or stale data', () => {
+  it('rejects tampered, foreign or stale data', async () => {
     const tampered = initData(alice).replace('Alice', 'Mallory');
-    expect(checkInitData(tampered, BOT_TOKEN)).toBeNull();
-    expect(checkInitData(initData(alice, { token: '999:other' }), BOT_TOKEN)).toBeNull();
-    expect(checkInitData(initData(alice, { authDate: Math.floor(Date.now() / 1000) - 2 * 86400 }), BOT_TOKEN)).toBeNull();
-    expect(checkInitData('user=%7B%7D', BOT_TOKEN)).toBeNull();
+    expect(await checkInitData(tampered, BOT_TOKEN)).toBeNull();
+    expect(await checkInitData(initData(alice, { token: '999:other' }), BOT_TOKEN)).toBeNull();
+    expect(await checkInitData(initData(alice, { authDate: Math.floor(Date.now() / 1000) - 2 * 86400 }), BOT_TOKEN)).toBeNull();
+    expect(await checkInitData('user=%7B%7D', BOT_TOKEN)).toBeNull();
   });
 });
 
 describe('Store sync', () => {
   let store: Store;
   beforeEach(() => {
-    store = new Store(':memory:');
+    store = new Store(new NodeSql(':memory:'));
     store.upsertUser({ id: 1, firstName: 'A', username: null });
   });
 
@@ -109,6 +110,7 @@ describe('Store sync', () => {
 
 describe('HTTP API', () => {
   let dir: string;
+  let sql: NodeSql;
   let store: Store;
   let server: Server;
   let base: string;
@@ -121,14 +123,15 @@ describe('HTTP API', () => {
     writeFileSync(path.join(dist, 'index.html'), '<!doctype html><title>Daybook</title>');
     writeFileSync(path.join(dist, 'assets', 'app-1234.js'), 'console.log("hi");'.repeat(200));
     cfg = loadConfig({ BOT_TOKEN, DATA_DIR: dir, STATIC_DIR: dist, BOT_POLLING: '0', TRUST_PROXY: '0', APP_URL: 'https://daybook.test', ALLOWED_USERS: '42, @bob' });
-    store = new Store(path.join(dir, 'test.db'));
+    sql = new NodeSql(path.join(dir, 'test.db'));
+    store = new Store(sql);
     server = createApp({ store, cfg, bot: null });
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   });
   afterAll(() => {
     server.close();
-    store.close();
+    sql.close();
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -173,7 +176,7 @@ describe('HTTP API', () => {
   it('signs in once with a code from the bot', async () => {
     store.upsertUser({ id: 42, firstName: 'Alice', username: null });
     const { sha256 } = await import('../auth');
-    store.createCode(sha256('c'.repeat(32)), 42, Date.now() + 60000);
+    store.createCode(await sha256('c'.repeat(32)), 42, Date.now() + 60000);
     expect((await call('/api/auth/code', { body: { code: 'c'.repeat(32) } })).status).toBe(200);
     expect((await call('/api/auth/code', { body: { code: 'c'.repeat(32) } })).status).toBe(401);
   });
@@ -263,7 +266,7 @@ describe('Notifier', () => {
   beforeEach(() => {
     sent = [];
     fail = null;
-    store = new Store(':memory:');
+    store = new Store(new NodeSql(':memory:'));
     store.upsertUser({ id: 5, firstName: 'Sam', username: null });
     store.setChatOk(5, true);
     store.setTz(5, 'Asia/Singapore');
@@ -324,7 +327,7 @@ describe('Bot', () => {
 
   beforeEach(() => {
     calls = [];
-    store = new Store(':memory:');
+    store = new Store(new NodeSql(':memory:'));
     bot = new Bot(fakeApi, store, loadConfig({ APP_URL: 'https://daybook.test', BOT_POLLING: '0' }));
   });
 

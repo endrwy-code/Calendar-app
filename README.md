@@ -5,9 +5,9 @@ A calm to-do list and a calendar in one place. It's built to run as a
 an installable PWA) on your phone and desktop.
 
 On its own, everything stays on your device. With its small **server** (one
-container, see [DEPLOY.md](DEPLOY.md)) your phone and computer stay in sync,
-your calendar is stored in a database with daily backups, and your Telegram
-bot sends alerts like a calendar app would.
+container, or Cloudflare Workers; see [DEPLOY.md](DEPLOY.md)) your phone and
+computer stay in sync, your calendar is stored in a database, and your
+Telegram bot sends alerts like a calendar app would.
 
 There are two places, **To-do** and **Calendar**, switched with the tab bar at
 the bottom (in thumb reach). Tap a tab or drag the highlight across. The **☰**
@@ -169,12 +169,14 @@ npm test        # unit tests: recurrence, free slots, paging, springs, .ics, ale
                 # and the server (sign-in checks, sync conflicts, the API, alerts, bot commands)
 npm run build   # type-check + production build into dist/
 npm run server  # build everything and run the server on :8080 (see DEPLOY.md for settings)
+npm run cf:dev  # or run the Cloudflare version locally, in Cloudflare's own runtime
 ```
 
 ## Put it online
 
-**[DEPLOY.md](DEPLOY.md)** walks through running the server on Railway or on
-your own VPS, pointing your bot at it, and moving your data across.
+**[DEPLOY.md](DEPLOY.md)** walks through running the server on Railway, your
+own VPS, Google Cloud's free server or Cloudflare (Workers with a Durable
+Object), pointing your bot at it, and moving your data across.
 
 ## Put it in Telegram (app only, no server)
 
@@ -242,16 +244,23 @@ src/
                 import), side menu, icons, segmented control (also drives the
                 tab bar), popover, toasts
   styles/       tokens (light/dark), base controls, layout, to-do, calendar, forms
-server/         the server: HTTP API + static hosting, SQLite store, Telegram
-                sign-in, bot, alerts scheduler, plans from forwarded messages
+server/         the server: the API (a standard fetch handler), SQLite store,
+                Telegram sign-in, bot, alerts, plans from forwarded messages
                 (Claude, via the Messages API with built-in fetch); shares
-                src/lib with the app
+                src/lib with the app. Written with web-standard APIs only, so
+                it runs on Node and on Cloudflare. Node's own parts: main.ts,
+                http.ts (static files), sqlite-node.ts
+worker/         the Cloudflare version: a Worker that passes /api to one
+                Durable Object (SQLite storage, Telegram webhook, alerts
+                from a once-a-minute Cron Trigger); config in wrangler.jsonc
 ```
 
 Stack: React 19, TypeScript, Vite, Zustand, date-fns, lucide plus a few
 custom icons (tabs, menu, today, views). The server is plain Node (26 in the
 image; 22.13+ works) with its built-in `node:http` and `node:sqlite`, bundled
-into one file, so it adds no runtime dependencies. Text uses the system font (SF Pro on
+into one file, so it adds no runtime dependencies. On Cloudflare the same code
+runs in a Worker and a SQLite-backed Durable Object (`wrangler` is only a
+development dependency, for building and deploying). Text uses the system font (SF Pro on
 Apple devices) with Inter as the fallback. The quote, the month title and the
 menu title use Fraunces, upright with soft terminals. Fonts are bundled so
 the app works offline.

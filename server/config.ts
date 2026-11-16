@@ -1,13 +1,15 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { isValidTimeZone } from '../src/lib/tz';
 
+/** Settings come from environment variables (Node) or the Worker's variables and secrets (Cloudflare). */
+export type Env = Record<string, string | undefined>;
+
 export interface Config {
+  /** Node only: the port to listen on */
   port: number;
-  /** Where the SQLite database and its backups live */
+  /** Node only: where the SQLite database and its backups live */
   dataDir: string;
-  /** The built app (dist/) */
-  staticDir: string;
+  /** Node only: the built app (dist/); null = next to the server bundle */
+  staticDir: string | null;
   /** From @BotFather. Without it there's no sign-in and no alerts. */
   botToken: string | null;
   /** Public https address of this server, e.g. https://daybook.example.com */
@@ -24,11 +26,11 @@ export interface Config {
   anthropicKey: string | null;
   /** Claude model for reading plans */
   aiModel: string;
+  /** Another address for the Messages API (tests, a proxy); null = Anthropic's */
+  anthropicBaseUrl: string | null;
 }
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+export function loadConfig(env: Env): Config {
   const list = (env.ALLOWED_USERS ?? '')
     .split(/[\s,]+/)
     .map((s) => s.trim().replace(/^@/, '').toLowerCase())
@@ -37,8 +39,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const tz = env.DEFAULT_TZ?.trim();
   return {
     port: Number(env.PORT) || 8080,
-    dataDir: path.resolve(env.DATA_DIR || 'data'),
-    staticDir: path.resolve(env.STATIC_DIR || path.join(here, '..', 'dist')),
+    dataDir: env.DATA_DIR || 'data',
+    staticDir: env.STATIC_DIR || null,
     botToken: env.BOT_TOKEN?.trim() || null,
     appUrl,
     allowed: list.length ? new Set(list) : null,
@@ -47,6 +49,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     polling: env.BOT_POLLING !== '0',
     anthropicKey: env.ANTHROPIC_API_KEY?.trim() || null,
     aiModel: env.AI_MODEL?.trim() || 'claude-opus-5-5',
+    anthropicBaseUrl: env.ANTHROPIC_BASE_URL?.trim() || null,
   };
 }
 

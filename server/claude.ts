@@ -73,7 +73,8 @@ export class PlanReader {
 
   constructor(
     private cfg: ClaudeConfig,
-    private fetchImpl: typeof fetch = fetch,
+    // Called through a wrapper: Cloudflare Workers refuses a fetch that isn't called on the global object.
+    private fetchImpl: typeof fetch = ((...args: Parameters<typeof fetch>) => fetch(...args)) as typeof fetch,
   ) {
     this.model = cfg.model;
   }

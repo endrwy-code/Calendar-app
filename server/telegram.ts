@@ -75,7 +75,7 @@ export class BotApi {
   }
 
   /** Downloads a file someone sent the bot (photos are JPEG). Capped at 8 MB. */
-  async downloadFile(fileId: string): Promise<Buffer> {
+  async downloadFile(fileId: string): Promise<Uint8Array> {
     const file = await this.call<{ file_path?: string; file_size?: number }>('getFile', { file_id: fileId });
     if (!file.file_path || (file.file_size ?? 0) > 8 * 1024 * 1024) throw new TelegramError(400, 'file too large');
     let res: Response;
@@ -85,7 +85,7 @@ export class BotApi {
       throw new TelegramError(0, 'network error');
     }
     if (!res.ok) throw new TelegramError(res.status, 'download failed');
-    return Buffer.from(await res.arrayBuffer());
+    return new Uint8Array(await res.arrayBuffer());
   }
 
   /** Sends a file as a document. */

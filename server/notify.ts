@@ -1,13 +1,11 @@
 /**
  * Sends alerts and the morning summary, like a calendar app's notifications.
  *
- * Every 20 seconds it looks, for each user the bot can reach, at alerts due in
+ * Every 20 seconds (every minute on Cloudflare) it looks, for each user the bot can reach, at alerts due in
  * the last 10 minutes (in that user's time zone) and sends any not sent yet.
  * Looking back 10 minutes means an alert missed by a restart or a network
  * hiccup still goes out; the `sent` table makes sure each goes out once.
  */
-import { mkdirSync, readdirSync, rmSync } from 'node:fs';
-import path from 'node:path';
 import { format, startOfDay } from 'date-fns';
 import { alertsBetween } from '../src/lib/reminders';
 import { toDateKey } from '../src/lib/dates';
@@ -34,6 +32,7 @@ export class Notifier {
     private cfg: Config,
   ) {}
 
+  /** Node: checks every 20 seconds. Cloudflare calls tick() from a once-a-minute Cron Trigger instead. */
   start() {
     const run = async () => {
       await this.tick().catch((e) => console.error('Alerts:', (e as Error).message));
@@ -43,7 +42,7 @@ export class Notifier {
   }
 
   stop() {
-    clearTimeout(this.timer);
+    if (this.timer !== undefined) clearTimeout(this.timer);
   }
 
   async tick(now = Date.now()) {
@@ -96,26 +95,4 @@ export class Notifier {
       return false;
     }
   }
-}
-
-/** Daily: tidy up, and keep a copy of the database for each of the last 7 days. */
-export function startMaintenance(store: Store, dataDir: string): ReturnType<typeof setInterval> {
-  const dir = path.join(dataDir, 'backups');
-  const run = () => {
-    try {
-      store.prune();
-      mkdirSync(dir, { recursive: true });
-      const name = `daybook-${new Date().toISOString().slice(0, 10)}.db`;
-      const existing = readdirSync(dir).filter((f) => /^daybook-\d{4}-\d{2}-\d{2}\.db$/.test(f)).sort();
-      if (!existing.includes(name)) {
-        store.backupTo(path.join(dir, name));
-        existing.push(name);
-      }
-      for (const old of existing.slice(0, -7)) rmSync(path.join(dir, old), { force: true });
-    } catch (e) {
-      console.error('Backup:', (e as Error).message);
-    }
-  };
-  run();
-  return setInterval(run, 6 * 3600000);
 }

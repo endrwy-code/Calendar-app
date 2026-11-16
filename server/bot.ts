@@ -1,8 +1,11 @@
 /**
  * The Telegram bot: sends alerts and the morning summary, answers /today,
  * /tomorrow and /next, adds to-dos from messages, and hands out sign-in links
- * for using Daybook in a browser. It fetches updates by long polling, so it
- * works behind any host without setting up a webhook.
+ * for using Daybook in a browser.
+ *
+ * Updates arrive one of two ways. On Node it fetches them by long polling, so
+ * it works behind any host. On Cloudflare (no long-running process) Telegram
+ * sends them to /api/telegram instead: a webhook, checked by a secret.
  */
 import { startOfDay, addDays, format } from 'date-fns';
 import type { Task } from '../src/types';
@@ -31,7 +34,24 @@ const COMMANDS = [
 ];
 
 const LOGIN_TTL_MS = 15 * 60000;
+/** Bumped when what setup() sends to Telegram changes, so existing bots get it again. */
+const SETUP_VERSION = '1';
+/** How often webhook mode checks the webhook is still set to this server */
+const WEBHOOK_CHECK_MS = 3600000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * The secret Telegram sends with each webhook update, derived from the bot
+ * token so there's nothing extra to configure. Hex fits Telegram's rules
+ * (1-256 characters of A-Z, a-z, 0-9, _ and -).
+ */
+export const webhookSecret = (botToken: string) => sha256(`daybook-telegram-webhook\n${botToken}`);
+
+export interface Webhook {
+  /** https address Telegram posts updates to */
+  url: string;
+  secret: string;
+}
 
 export class Bot implements Messenger, ChatPort {
   username: string | null = null;
@@ -89,15 +109,19 @@ export class Bot implements Messenger, ChatPort {
     await this.api.call('answerCallbackQuery', { callback_query_id: callbackId, text }).catch(() => {});
   }
 
-  photo(fileId: string): Promise<Buffer> {
+  photo(fileId: string): Promise<Uint8Array> {
     return this.api.downloadFile(fileId);
   }
 
-  /** Connects to Telegram and sets up the command list and menu button. */
-  async init(): Promise<boolean> {
+  /**
+   * Connects to Telegram and sets up the command list and menu button, and
+   * either the webhook (Cloudflare) or long polling (Node, webhook = null).
+   */
+  async init(webhook: Webhook | null = null): Promise<boolean> {
     try {
       const me = await this.api.call<TgUser>('getMe');
       this.username = me.username ?? null;
+      if (this.username) this.store.setMeta('bot_username', this.username);
     } catch (e) {
       console.error(`Telegram: couldn’t connect the bot (${(e as Error).message}). Check BOT_TOKEN.`);
       return false;
@@ -110,8 +134,57 @@ export class Bot implements Messenger, ChatPort {
     } catch (e) {
       console.warn(`Telegram: couldn’t set the menu (${(e as Error).message})`);
     }
-    console.log(`Telegram: connected as @${this.username}`);
+    if (webhook) {
+      try {
+        await this.api.call('setWebhook', {
+          url: webhook.url,
+          secret_token: webhook.secret,
+          allowed_updates: ['message', 'callback_query'],
+          // One at a time, in order, like polling.
+          max_connections: 1,
+        });
+      } catch (e) {
+        console.error(`Telegram: couldn’t set the webhook (${(e as Error).message})`);
+        return false;
+      }
+    }
+    console.log(`Telegram: connected as @${this.username}${webhook ? ' (webhook)' : ''}`);
     return true;
+  }
+
+  /**
+   * Webhook mode: sets the bot up the first time, and again whenever the
+   * token, address or setup changes. Cheap to call often (it checks a note in
+   * the database first). Returns whether the bot is ready.
+   */
+  async ensureWebhook(webhook: Webhook): Promise<boolean> {
+    const key = `${SETUP_VERSION} ${webhook.url} ${this.appLink ?? ''} ${await sha256(webhook.secret)}`;
+    const now = Date.now();
+    if (this.store.getMeta('bot_setup') === key) {
+      this.username ??= this.store.getMeta('bot_username');
+      if (now - Number(this.store.getMeta('bot_checked_at') ?? 0) < WEBHOOK_CHECK_MS) return true;
+      // Now and then, check the webhook is still ours: another copy of the bot
+      // (a test server that polls, say) would have removed it.
+      const info = await this.api.call<{ url?: string; last_error_message?: string }>('getWebhookInfo').catch(() => null);
+      if (info?.last_error_message) console.warn(`Telegram: last webhook error: ${info.last_error_message}`);
+      if (!info || info.url === webhook.url) {
+        this.store.setMeta('bot_checked_at', String(now));
+        return true;
+      }
+      console.warn('Telegram: the webhook was changed elsewhere (is another copy of this bot running?). Setting it again.');
+    }
+    if (!(await this.init(webhook))) return false;
+    this.store.setMeta('bot_setup', key);
+    this.store.setMeta('bot_checked_at', String(now));
+    return true;
+  }
+
+  /** Webhook mode: one update from Telegram. Each is handled once, even if Telegram sends it again. */
+  async receive(u: TgUpdate) {
+    const key = `tg-update:${u.update_id}`;
+    if (this.store.wasSent(0, key)) return;
+    this.store.markSent(0, key);
+    await this.handle(u);
   }
 
   start() {
@@ -142,10 +215,11 @@ export class Bot implements Messenger, ChatPort {
   }
 
   private async loop() {
-    while (this.running && !this.username) {
+    while (this.running) {
       if (await this.init()) break;
       await sleep(30000);
     }
+
     // Long polling and webhooks can't both be on.
     await this.api.call('deleteWebhook', { drop_pending_updates: false }).catch(() => {});
     let offset = Number(this.store.getMeta('telegram_offset') ?? 0);
@@ -301,7 +375,7 @@ export class Bot implements Messenger, ChatPort {
       return;
     }
     const code = newToken(24);
-    this.store.createCode(sha256(code), user.id, Date.now() + LOGIN_TTL_MS);
+    this.store.createCode(await sha256(code), user.id, Date.now() + LOGIN_TTL_MS);
     const url = `${this.cfg.appUrl}/?login=${code}`;
     const text = 'Open this link to sign in to Daybook in a browser. It works once, for the next 15 minutes. Don’t share it.';
     if (this.appLink) await this.send(user.id, text, { buttons: [[{ text: 'Sign in', url }]] });

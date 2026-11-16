@@ -2,11 +2,12 @@
 
 Daybook runs fine on its own (everything stays on the device), but to keep your
 phone and computer in sync and to get alerts as Telegram messages, it needs its
-server. The server is one small container that:
+server. The server runs either as one small container (Railway, a VPS) or on
+Cloudflare's network (Option D). Either way, it:
 
 - hosts the app at your own https address,
-- stores everything in a SQLite database on a disk that survives restarts, with a
-  copy made every day (the last 7 are kept),
+- stores everything in a SQLite database that survives restarts (in a
+  container, a copy is made every day and the last 7 are kept),
 - keeps your devices in sync (newest edit wins when two devices change the same thing),
 - runs your Telegram bot: alerts, a morning summary, `/today`, `/tomorrow`,
   `/next`, quick to-dos (send it any text) and sign-in links for browsers,
@@ -14,7 +15,8 @@ server. The server is one small container that:
   and lets you check and edit them before they're added,
 - serves a private calendar link that Apple, Google or Outlook Calendar can subscribe to.
 
-It needs no other services: the database is built into Node.
+It needs no other services: the database is built into Node, and into
+Cloudflare's Durable Objects.
 
 ## What you need
 
@@ -23,8 +25,8 @@ It needs no other services: the database is built into Node.
    the steps. Treat the token like a password: don't commit it, don't paste it
    into chats (AI chats included), and only put it in your host's settings or
    your server's `.env` file.
-2. **Somewhere to run a container all the time**, with a disk that's kept and an
-   https address. Pick one:
+2. **Somewhere to run it**, with storage that's kept and an https address.
+   Pick one:
    - **[Railway](https://railway.com)**: the easiest. No server to look after; it
      builds from your GitHub repo. Its Free plan gives $1 of usage a month, and
      Daybook is small enough that it should fit (see Option A). Otherwise a few
@@ -33,6 +35,10 @@ It needs no other services: the database is built into Node.
      cheapest and you're in full control, but you look after the machine.
    - **Google Cloud's free server**: a small VPS that's free within Google's
      allowance (one server, in the US). A few extra steps; see Option C.
+   - **[Cloudflare](https://www.cloudflare.com)**: no server or container to look
+     after, and it builds from your GitHub repo. Its Free plan should cover one
+     person (see Option D for its limits). It works a little differently: see
+     Option D.
 3. **Your Telegram username** (or numeric id), so only you can use your server.
 
 ## Option A: Railway
@@ -172,6 +178,121 @@ Good to know:
 - 1 GB a month of outbound traffic is free. That's plenty for one person
   (photos you forward to Claude count towards it).
 
+## Option D: Cloudflare (Workers and a Durable Object)
+
+On Cloudflare, Daybook isn't a container. The app's files are served from
+Cloudflare's network, and everything else (the API, the database, the bot and
+the alerts) lives in one *Durable Object*: a small program with its own SQLite
+database. There's no machine to look after and nothing to keep running.
+
+It's the same Daybook with the same features. What's different:
+
+- **Telegram sends the bot's messages to Daybook** (a webhook) instead of
+  Daybook asking for them. Daybook sets this up by itself, protected by a
+  secret worked out from your bot token.
+- **Alerts are checked once a minute** (on a container, every 20 seconds).
+- **Backups:** there are no daily copies in a folder. Cloudflare keeps 30 days
+  of the database's history (point-in-time recovery), though its docs don't
+  say whether the Free plan includes it, and getting an old copy back needs a
+  small code change. Keep a copy of your own now and then: **Settings → Backup
+  and data → Download a backup**.
+
+### Set it up
+
+1. **Create a Cloudflare account** at [dash.cloudflare.com](https://dash.cloudflare.com/sign-up)
+   (the Free plan is enough to start; see *Free plan limits* below).
+2. **Connect the repository.** In the dashboard, go to **Workers & Pages →
+   Create → Import a repository**, connect GitHub and pick this repository.
+   - **Project name**: `daybook`. It has to match `name` in `wrangler.jsonc`,
+     or the build fails.
+   - **Branch**: the branch you want to run.
+   - **Build command**: leave it empty. **Deploy command**: `npx wrangler deploy`
+     (the default). It builds the app first, by itself (`wrangler.jsonc` says how).
+
+   The first deploy takes a few minutes. Your address is
+   `https://daybook.<your-subdomain>.workers.dev`.
+3. **Add your settings** in the Worker's **Settings → Variables and Secrets**.
+   Choose type **Secret** for the two keys:
+
+   | Name | Type | Value |
+   | --- | --- | --- |
+   | `BOT_TOKEN` | Secret | your bot token |
+   | `ALLOWED_USERS` | Text | your Telegram username, e.g. `@yourname` |
+   | `DEFAULT_TZ` | Text | your time zone, e.g. `Asia/Singapore` |
+   | `APP_URL` | Text | optional: only for your own domain (see below) |
+   | `ANTHROPIC_API_KEY` | Secret | optional: for plans from forwarded messages |
+   | `AI_MODEL` | Text | optional: e.g. `claude-haiku-5-5` (default `claude-opus-5-5`) |
+
+   Saving deploys a new version. Variables you set here are kept on later
+   deploys (`keep_vars` in `wrangler.jsonc`).
+4. **Open `https://daybook.<your-subdomain>.workers.dev/api/health`.** That
+   first visit tells Daybook its address and connects the bot. Reload after a
+   few seconds: you should see `"bot":"your_bot_name"`. If it stays `null`,
+   look at the Worker's **Logs** tab (`couldn’t connect the bot` means the
+   token is wrong).
+5. Carry on with **Point Telegram at it** below, using the workers.dev address.
+
+To update later, push to the branch; Cloudflare builds and deploys it.
+
+**Your own domain (optional).** Under the Worker's **Settings → Domains &
+Routes**, add a custom domain. Then set `APP_URL` to it (`https://` and the
+domain, no slash at the end), and change the Mini App URL in BotFather. Daybook
+moves the bot's webhook over by itself within a minute.
+
+**From your computer instead of the dashboard.** With Node 22 or newer:
+
+```bash
+npm ci
+```
+
+```bash
+npx wrangler login
+```
+
+```bash
+npx wrangler deploy
+```
+
+```bash
+npx wrangler secret put BOT_TOKEN
+```
+
+Add the other settings the same way (`secret put` works for every one of them,
+not only the secret ones), or in the dashboard.
+
+### Free plan limits
+
+Cloudflare's Free plan includes Durable Objects with SQLite. Daybook's
+once-a-minute alert check uses about 1,500 of the 100,000 requests a day, and
+requests for the app's files are free and unlimited. For one person, the
+daily allowances for storage, reads and writes are far more than Daybook
+needs. ([Workers limits](https://developers.cloudflare.com/workers/platform/limits/),
+[Durable Objects pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/))
+
+The one to watch is **CPU time**: the Free plan allows 10 ms of computing per
+request. Cloudflare's docs aren't consistent about whether that applies to
+Durable Objects, so Daybook keeps each request small (it syncs in parts of a
+few hundred changes). A very large calendar could still go over, most likely
+in the subscription link (`.ics`) or a big import. If the Worker's **Logs**
+show `exceeded CPU` errors, move to the Workers Paid plan
+([pricing](https://developers.cloudflare.com/workers/platform/pricing/)),
+which allows 30 seconds.
+
+### Moving from Railway or a VPS
+
+There's no tool to copy the database across. Your devices carry everything:
+
+1. **Stop the old server** (or remove `BOT_TOKEN` from it). Two servers can't
+   share one bot: the old one would keep taking the bot's messages away.
+2. Set up Cloudflare as above, and point BotFather's Mini App URL at the new
+   address.
+3. Open Daybook on each device. Each one signs in to the new server and
+   uploads what it has. Check your events are there before deleting the old
+   server.
+4. Send your bot `/start` once, so it may message you again, then check
+   **Settings → Alerts** (alerts, the morning summary and the calendar link
+   start afresh on a new server).
+
 ## Point Telegram at it
 
 1. In @BotFather: `/mybots` → your bot → **Bot Settings → Configure Mini App**
@@ -251,17 +372,20 @@ see your events, so keep it to yourself; **Turn off link** stops it working.
 
 ## Your data
 
-- Everything is in one file, `/data/daybook.db`. Every day a copy is written to
-  `/data/backups/` and the last 7 are kept. Now and then, keep a copy somewhere
-  else as well: **Settings → Backup and data → Download a backup** from the app,
-  or on a VPS `docker compose cp daybook:/data/backups ./backups`.
+- In a container, everything is in one file, `/data/daybook.db`. Every day a
+  copy is written to `/data/backups/` and the last 7 are kept. On Cloudflare,
+  it's in the Durable Object's own database (see Option D for its history).
+  Now and then, keep a copy somewhere else as well: **Settings → Backup and
+  data → Download a backup** from the app, or on a VPS
+  `docker compose cp daybook:/data/backups ./backups`.
 - Alerts and the morning summary are Telegram messages, so event titles, times
   and places pass through Telegram like any chat. Keep anything sensitive out of
   event titles and notes.
 - Sign-in links, sessions and calendar links are stored only as hashes, so a
   copy of the database can't be used to sign in.
 - If your bot token ever leaks: @BotFather → `/revoke`, then put the new token in
-  your host's variables (or `.env`) and restart.
+  your host's variables (or `.env`) and restart. On Cloudflare, saving the new
+  secret is enough; the webhook secret changes with it.
 
 ## If something's off
 
@@ -275,6 +399,10 @@ see your events, so keep it to yourself; **Turn off link** stops it working.
 | Data gone after a Railway deploy | The volume isn't mounted at `/data`. |
 | Bot says the Anthropic API key was turned down | Check `ANTHROPIC_API_KEY`, and that the key's workspace has credit. |
 | Forwarded messages become to-dos instead | `ANTHROPIC_API_KEY` isn't set on the server. |
+| Cloudflare: `/api/health` shows `"bot":null` | Reload after a few seconds. Still `null`: check `BOT_TOKEN`, and the Worker's **Logs**. |
+| Cloudflare: the bot doesn't answer | Another copy of the bot is running (an old server, or a local test with the same token). Stop it; Daybook takes the webhook back within an hour. |
+| Cloudflare: Logs show `exceeded CPU` | The Free plan's CPU limit; see *Free plan limits* in Option D. |
+| Cloudflare: the build fails on the project name | Name the Worker `daybook`, as in `wrangler.jsonc`. |
 
 ## Running the server on your computer
 
@@ -291,6 +419,14 @@ that server, run Vite with the API passed through:
 
 ```bash
 DAYBOOK_SERVER=http://localhost:8080 npm run dev
+```
+
+To try the Cloudflare version on your computer (it runs Cloudflare's own
+runtime locally), put your test settings in a `.dev.vars` file (same format as
+`.env`; it's never committed), then:
+
+```bash
+npm run cf:dev
 ```
 
 All settings: `PORT` (8080), `DATA_DIR` (`./data`), `BOT_TOKEN`, `APP_URL`,

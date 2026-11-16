@@ -16,7 +16,7 @@ import type { CalEvent, Task } from '../src/types';
 import { uid } from '../src/lib/id';
 import { isValidTimeZone, wallClock } from '../src/lib/tz';
 import { describeWhen, planToEvent, planToTask, redactContacts, type PlanItem } from '../src/lib/plans';
-import { newToken } from './auth';
+import { newToken, toBase64 } from './auth';
 import { ClaudeError, type PlanReader, type ReadContext } from './claude';
 import type { Config } from './config';
 import { esc } from './messages';
@@ -29,7 +29,7 @@ export interface ChatPort {
   edit(chatId: number, messageId: number, html: string, rows?: InlineButton[][]): Promise<void>;
   typing(chatId: number): Promise<void>;
   answer(callbackId: string, text: string): Promise<void>;
-  photo(fileId: string): Promise<Buffer>;
+  photo(fileId: string): Promise<Uint8Array>;
   appLink: string | null;
 }
 
@@ -53,7 +53,6 @@ function pickPhoto(sizes: TgPhotoSize[]): TgPhotoSize {
 
 export class PlanFlow {
   private pending = new Map<number, Pending>();
-  private calls = new Map<number, number[]>();
 
   constructor(
     private chat: ChatPort,
@@ -75,7 +74,7 @@ export class PlanFlow {
     if (m.photo?.length) p.photos.push(pickPhoto(m.photo).file_id);
     const sent = (m.forward_origin?.date ?? m.date ?? 0) * 1000;
     if (sent) p.sentAt = p.sentAt ? Math.min(p.sentAt, sent) : sent;
-    clearTimeout(p.timer);
+    if (p.timer !== undefined) clearTimeout(p.timer);
     p.timer = setTimeout(() => void this.flush(user.id).catch((e) => console.error('Plans:', (e as Error).message)), this.batchMs);
   }
 
@@ -83,13 +82,13 @@ export class PlanFlow {
   async flush(userId: number) {
     const p = this.pending.get(userId);
     if (!p) return;
-    clearTimeout(p.timer);
+    if (p.timer !== undefined) clearTimeout(p.timer);
     this.pending.delete(userId);
     if (!this.enabled(p.user)) return;
     const images: { mediaType: 'image/jpeg'; data: string }[] = [];
     for (const id of p.photos.slice(0, MAX_PHOTOS)) {
       try {
-        images.push({ mediaType: 'image/jpeg', data: (await this.chat.photo(id)).toString('base64') });
+        images.push({ mediaType: 'image/jpeg', data: toBase64(await this.chat.photo(id)) });
       } catch {
         /* skip a photo that can't be fetched */
       }
@@ -114,12 +113,15 @@ export class PlanFlow {
     return false;
   }
 
+  /**
+   * Each person can have Claude read at most CALLS_PER_HOUR batches an hour.
+   * Counted in the database, so a restart (or a Cloudflare Durable Object
+   * leaving memory) doesn't reset it.
+   */
   private overBudget(userId: number): boolean {
     const now = Date.now();
-    const recent = (this.calls.get(userId) ?? []).filter((t) => now - t < 3600000);
-    if (recent.length >= CALLS_PER_HOUR) return true;
-    recent.push(now);
-    this.calls.set(userId, recent);
+    if (this.store.countSentSince(userId, 'claude-call:', now - 3600000) >= CALLS_PER_HOUR) return true;
+    this.store.markSent(userId, `claude-call:${now}:${newToken(6)}`);
     return false;
   }
 
